@@ -5,6 +5,7 @@ This package efficiently simulates quantum circuits that don't generate a lot of
 In other words, they are few basis states to keep track of.
 Many common quantum gates, such as *X*, *Z*, *S*, *CX*, *CZ* along with several non-Clifford gates such as _T_ or _CCZ_ map each computational state to a single computational state, i.e. they are not **branching**.
 If there are few branching gates, such as the Hadamard gate *H*, the final state can be computed efficiently, since the state is effectively very **sparse**.
+Computationally, the complexity grows exponentially with the number of *H* gates, both in time and space.
 
 ## Installation
 
@@ -45,6 +46,11 @@ Let's now apply it to the state
 
 ```julia
 state_final = circuit(state_initial)
+```
+
+We can also use Julia's built-in pipe operator `|>` to write the more suggestive
+```julia
+state_final = state_initial |> circuit
 ```
 
 A variety of common gates are supported as well as quantum channels such as `Measure` and `Reset`.
