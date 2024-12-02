@@ -39,7 +39,7 @@ end
 
 function apply!(channel::Measure, state::SparseState{K,V}) where {K,V}
     (; table, masks) = state
-    for (i,) in support(channel)
+    @inbounds for (i,) in support(channel)
         p = expectation(state, i)
         outcome = rand() < p
         m = state.masks[i]
@@ -60,7 +60,7 @@ end
 
 function apply!(channel::Reset, state::SparseState{K,V}) where {K,V}
     (; table, masks) = state
-    for (i,) in support(channel)
+    @inbounds for (i,) in support(channel)
         p = expectation(state, i)
         outcome = rand() < p
         m = state.masks[i]

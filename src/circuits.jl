@@ -6,18 +6,24 @@ struct Circuit <: AbstractOperator
 end
 
 Circuit(circuit::Circuit) = Circuit(parent(circuit))
+Circuit(op::AbstractOperator) = Circuit([op])
 Circuit(ops::AbstractOperator...) = Circuit(reduce(*, ops))
 Circuit(generator) = Circuit(reduce(*, generator))
 
+Base.:*(x::AbstractOperator, y::AbstractOperator) = Circuit([x, y])
+Base.:*(x::Circuit, y::AbstractOperator) = Circuit(vcat(parent(x), y))
+Base.:*(x::AbstractOperator, y::Circuit) = Circuit(vcat(x, parent(y)))
+Base.:*(x::Circuit, y::Circuit) = Circuit(vcat(parent(x), parent(y)))
+
 Base.parent(circuit::Circuit) = circuit.ops
-Base.length(circuit) = length(parent(circuit))
+Base.length(circuit::Circuit) = length(parent(circuit))
 Base.iterate(circuit::Circuit, args...) = iterate(parent(circuit), args...)
 Base.firstindex(circuit::Circuit) = firstindex(parent(circuit))
 Base.lastindex(circuit::Circuit) = lastindex(parent(circuit))
 Base.getindex(circuit::Circuit, i) = getindex(parent(circuit), i)
 Base.setindex!(circuit::Circuit, i, val) = setindex!(parent(circuit), i, val)
 
-support(circuit::Circuit) = union(map(op -> union(support(op)...), parent(circuit)))
+support(circuit::Circuit) = mapreduce(support, vcat, parent(circuit); init=Tuple{Vararg{Int}}[])
 
 function Base.show(io::IO, circuit::Circuit)
     if length(circuit) > 8
@@ -37,14 +43,9 @@ function Base.show(io::IO, ::MIME"text/plain", circuit::Circuit)
     return nothing
 end
 
-Base.:*(x::AbstractOperator, y::AbstractOperator) = Circuit([x, y])
-Base.:*(x::Circuit, y::AbstractOperator) = Circuit(vcat(parent(x), y))
-Base.:*(x::AbstractOperator, y::Circuit) = Circuit(vcat(x, parent(y)))
-Base.:*(x::Circuit, y::Circuit) = Circuit(vcat(parent(x), parent(y)))
-
-function apply!(circuit::Circuit, state::SparseState)
+function apply!(circuit::Circuit, state::SparseState; kwargs...)
     foreach(parent(circuit)) do op
-        apply!(op, state)
+        apply!(op, state; kwargs...)
     end
     return state
 end

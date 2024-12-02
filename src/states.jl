@@ -92,7 +92,7 @@ function Base.show(io::IO, ::MIME"text/plain", state::SparseState{K,V}) where {K
     foreach(state) do (key, value)
         basis = [Int(!iszero(key & mask)) for mask in state.masks]
         if isreal(value)
-            print(io, " ", (real(value) > 0 ? "+ " : ""), round(real(value); sigdigits=6), "|", join(basis), "⟩")
+            print(io, " ", (real(value) > 0 ? "+" : ""), round(real(value); sigdigits=6), "|", join(basis), "⟩")
         else
             print(io, " +(", round(value; sigdigits=6), ")|", join(basis), "⟩")
         end
@@ -103,18 +103,16 @@ function Base.show(io::IO, ::MIME"text/plain", state::SparseState{K,V}) where {K
     return nothing
 end
 
-function Base.:+(first_state::SparseState{K}, second_state::SparseState{K}) where {K}
-    @boundscheck num_qubits(first_state) == num_qubits(second_state) ||
-        throw(ArgumentError("States do not have the same number of qubits"))
-    return SparseState(mergewith(+, first_state, second_state), num_qubits(first_state))
-end
+default_droptol(::Type{T}) where T<:Complex = default_droptol(real(T))
+default_droptol(::Type{T}) where T<:Union{Integer,Rational} = zero(T)
+default_droptol(::Type{T}) where T<:Number = sqrt(eps(T))
 
-function _sorted_merge!(t₁::AbstractVector{Pair{K,V}}, t₂::AbstractVector{Pair{K,V}}; droptol) where {K,V}
+function sorted_merge!(t₁::AbstractVector{Pair{K,V₁}}, t₂::AbstractVector{Pair{K,V₂}}; droptol) where {K,V₁,V₂}
     # Merges two tables assuming they are sorted
-    # @label beginning
+    V = promote_type(V₁, V₂)
     i₁ = firstindex(t₁)
     @label beginning
-    @inbounds while !isempty(t₂)
+    @inbounds if !isempty(t₂)
         i₂ = firstindex(t₂)
         k₂, v₂ = t₂[i₂]
         while i₁ <= lastindex(t₁)
@@ -140,20 +138,31 @@ function _sorted_merge!(t₁::AbstractVector{Pair{K,V}}, t₂::AbstractVector{Pa
         end
         # Traversed all of `t₁`, just append
         append!(t₁, t₂)
-        break
     end
     return t₁
 end
+
+function Base.:+(first_state::SparseState{K}, second_state::SparseState{K}) where {K}
+    @boundscheck num_qubits(first_state) == num_qubits(second_state) ||
+        throw(ArgumentError("States do not have the same number of qubits"))
+    droptol = default_droptol(promote_type(valtype(first_state), valtype(second_state)))
+    new_table = sorted_merge!(copy(table(first_state)), copy(table(second_state)); droptol)
+    return SparseState(new_table, num_qubits(first_state))
+end
+
 
 function Base.:*(α::Number, state::SparseState)
     return SparseState(Dict(s => α * v for (s, v) in state), num_qubits(state))
 end
 
 Base.:*(state::SparseState, α::Number) = α * state
+Base.:-(state::SparseState) = -one(valtype(state)) * state
+Base.:-(first_state::SparseState, second_state::SparseState) = first_state + (-second_state)
+Base.:/(state::SparseState, α::Number) = inv(α) * state
 
 function LinearAlgebra.kron(first_state::SparseState{K,V₁}, second_state::SparseState{K,V₂}) where {K,V₁,V₂}
-    pairs = (s₁ << num_qubits(second_state) | s₂ => v₁ * v₂ for (s₁, v₁) in first_state for (s₂, v₂) in second_state)
-    return SparseState(pairs, num_qubits(first_state) + num_qubits(second_state))
+    new_table = [s₁ << num_qubits(second_state) | s₂ => v₁ * v₂ for (s₁, v₁) in first_state for (s₂, v₂) in second_state]
+    return SparseState(sort!(new_table; by=first), num_qubits(first_state) + num_qubits(second_state))
 end
 
 LinearAlgebra.kron(states::SparseState...) = foldl(kron, states)

@@ -1,16 +1,18 @@
 module SparseStates
 
 using LinearAlgebra
+using Combinatorics
 
 export SparseState
 export num_qubits, expectation
 export AbstractOperator, Operator, SuperOperator
-export support, apply
-export X, Y, Z, H, S, CX, CNOT, CY, CZ, CCX, CCNOT, CCY, CCZ
+export support, apply, apply!
+export X, Y, Z, H, S, CX, CNOT, CY, CZ, SWAP, CCX, CCNOT, CCY, CCZ
 export DepolarizingChannel, Reset, Measure
 export Circuit
-export pauli_combinations, pauli_strings, append_operators
-export pauli_decomposition
+export pauli_combinations, pauli_strings
+export pauli_decomposition, append_operators, drop_error_operators, error_locations, insert_error_operators
+
 
 include("states.jl")
 include("abstractoperators.jl")
