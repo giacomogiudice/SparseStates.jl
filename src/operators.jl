@@ -10,6 +10,7 @@
 @operator(CX, 2)
 @operator(CY, 2)
 @operator(CZ, 2)
+@operator(SWAP, 2)
 
 @operator(CCX, 3)
 @operator(CCY, 3)
@@ -60,29 +61,53 @@ function apply!(gate::S, state::SparseState; kwargs...)
     m = mapreduce(inds -> masks[only(inds)], ⊻, support(gate))
     @inbounds for i in eachindex(table)
         s, v = table[i]
-        table[i] = s ⊻ m => im^parity(s & m) * v
+        table[i] = s => im^parity(s & m) * v
     end
     return state
 end
 
-function apply!(gate::H, state::SparseState; droptol=1e-12, kwargs...)
+# function apply!(gate::H, state::SparseState; droptol=default_droptol(keytype(state)), kwargs...)
+#     (; table, masks) = state
+#     sort!(table; by=first)
+#     # Precompute the normalization factor
+#     n = convert(valtype(state), √2)
+#     for (i,) in support(gate)
+#         new_table = similar(table)
+#         m = masks[i]
+#         @inbounds for i in eachindex(table)
+#             s, v = table[i]
+#             # One state just changes sign, it remains in the current table
+#             table[i] = s => (1 - 2 * parity(s & m)) * v / n
+#             # Save flipped state to new table
+#             new_table[i] = s ⊻ m => v / n
+#         end
+#         # Merge new table and combine it with old one
+#         sort!(new_table; by=first)
+#         sorted_merge!(table, new_table; droptol)
+#     end
+#     return state
+# end
+
+function apply!(gate::H, state::SparseState; droptol=default_droptol(keytype(state)), kwargs...)
     (; table, masks) = state
     sort!(table; by=first)
+    new_table = similar(table, 0)
     # Precompute the normalization factor
     n = convert(valtype(state), √2)
     for (i,) in support(gate)
-        new_table = similar(table)
+        empty!(new_table)
+        sizehint!(new_table, length(table))
         m = masks[i]
         @inbounds for i in eachindex(table)
             s, v = table[i]
             # One state just changes sign, it remains in the current table
             table[i] = s => (1 - 2 * parity(s & m)) * v / n
             # Save flipped state to new table
-            new_table[i] = s ⊻ m => v / n
+            push!(new_table, s ⊻ m => v / n)
         end
         # Merge new table and combine it with old one
         sort!(new_table; by=first)
-        _sorted_merge!(table, new_table; droptol)
+        sorted_merge!(table, new_table; droptol)
     end
     return state
 end
@@ -123,6 +148,24 @@ function apply!(gate::CZ, state::SparseState; kwargs...)
         @inbounds for i in eachindex(table)
             s, v = table[i]
             v *= 1 - 2 * (!iszero(s & mᵢ) & !iszero(s & mⱼ))
+            table[i] = s => v
+        end
+    end
+    return state
+end
+
+function apply!(gate::SWAP, state::SparseState; kwargs...)
+    (; table, masks) = state
+    for (i, j) in support(gate)
+        if j < i
+            i, j = j, i
+        end
+        shift = convert(keytype(state), j - i)
+        mᵢ, mⱼ = masks[i], masks[j]
+        @inbounds for i in eachindex(table)
+            s, v = table[i]
+            u = (s & mᵢ) ⊻ ((s & mⱼ) >> shift)
+            s ⊻= u | (u << shift)
             table[i] = s => v
         end
     end
