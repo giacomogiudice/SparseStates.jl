@@ -38,10 +38,12 @@ end
 
 function apply!(gate::Y, state::SparseState; kwargs...)
     (; table, masks) = state
+    c = im ^ length(support(gate))
     m = mapreduce(inds -> masks[only(inds)], ⊻, support(gate))
     @inbounds for i in eachindex(table)
         s, v = table[i]
-        table[i] = s ⊻ m => im * (1 - 2 * parity(s & m)) * v
+        # table[i] = s ⊻ m => im * (1 - 2 * parity(s & m)) * v
+        table[i] = s ⊻ m => c * (1 - 2 * parity(s & m)) * v
     end
     return state
 end
