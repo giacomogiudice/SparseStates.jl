@@ -1,13 +1,12 @@
 module SparseStates
 
 using LinearAlgebra
-using Combinatorics
 
 export SparseState
 export num_qubits, expectation
 export AbstractOperator, Operator, SuperOperator
 export support, apply, apply!
-export X, Y, Z, H, S, CX, CNOT, CY, CZ, SWAP, CCX, CCNOT, CCY, CCZ
+export X, Y, Z, H, S, T, CX, CNOT, CY, CZ, SWAP, CCX, CCNOT, CCY, CCZ
 export DepolarizingChannel, Reset, Measure
 export Circuit
 export pauli_combinations, pauli_strings
