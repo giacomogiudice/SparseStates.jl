@@ -12,7 +12,6 @@ export Circuit
 export pauli_combinations, pauli_strings
 export pauli_decomposition, append_operators, drop_error_operators, error_locations, insert_error_operators
 
-
 include("states.jl")
 include("abstractoperators.jl")
 include("operators.jl")

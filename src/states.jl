@@ -103,9 +103,9 @@ function Base.show(io::IO, ::MIME"text/plain", state::SparseState{K,V}) where {K
     return nothing
 end
 
-default_droptol(::Type{T}) where T<:Complex = default_droptol(real(T))
-default_droptol(::Type{T}) where T<:Union{Integer,Rational} = zero(T)
-default_droptol(::Type{T}) where T<:Number = sqrt(eps(T))
+default_droptol(::Type{T}) where {T<:Complex} = default_droptol(real(T))
+default_droptol(::Type{T}) where {T<:Union{Integer,Rational}} = zero(T)
+default_droptol(::Type{T}) where {T<:Number} = sqrt(eps(T))
 
 function sorted_merge!(t₁::AbstractVector{Pair{K,V₁}}, t₂::AbstractVector{Pair{K,V₂}}; droptol) where {K,V₁,V₂}
     # Merges two tables assuming they are sorted
@@ -150,7 +150,6 @@ function Base.:+(first_state::SparseState{K}, second_state::SparseState{K}) wher
     return SparseState(new_table, num_qubits(first_state))
 end
 
-
 function Base.:*(α::Number, state::SparseState)
     return SparseState(Dict(s => α * v for (s, v) in state), num_qubits(state))
 end
@@ -161,7 +160,9 @@ Base.:-(first_state::SparseState, second_state::SparseState) = first_state + (-s
 Base.:/(state::SparseState, α::Number) = inv(α) * state
 
 function LinearAlgebra.kron(first_state::SparseState{K,V₁}, second_state::SparseState{K,V₂}) where {K,V₁,V₂}
-    new_table = [s₁ << num_qubits(second_state) | s₂ => v₁ * v₂ for (s₁, v₁) in first_state for (s₂, v₂) in second_state]
+    new_table = [
+        s₁ << num_qubits(second_state) | s₂ => v₁ * v₂ for (s₁, v₁) in first_state for (s₂, v₂) in second_state
+    ]
     return SparseState(sort!(new_table; by=first), num_qubits(first_state) + num_qubits(second_state))
 end
 
