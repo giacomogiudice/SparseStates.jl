@@ -82,8 +82,9 @@ function Base.get!(default::Callable, state::SparseState, key)
             return last(pair)
         end
     end
-    insert!(table, i, default())
-    return default
+    val = convert!(valtype(state), default())
+    insert!(table, i, val)
+    return val
 end
 
 Base.getindex(state::SparseState, key::AbstractString) = getindex(state, convert_to_keytype(state, key))
