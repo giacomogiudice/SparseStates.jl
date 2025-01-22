@@ -161,7 +161,7 @@ Base.:/(state::SparseState, α::Number) = inv(α) * state
 
 function LinearAlgebra.kron(first_state::SparseState{K,V₁}, second_state::SparseState{K,V₂}) where {K,V₁,V₂}
     new_table = [
-        s₁ << num_qubits(second_state) | s₂ => v₁ * v₂ for (s₁, v₁) in first_state for (s₂, v₂) in second_state
+        s₁ | (s₂ << num_qubits(first_state)) => v₁ * v₂ for (s₁, v₁) in first_state for (s₂, v₂) in second_state
     ]
     return SparseState(sort!(new_table; by=first), num_qubits(first_state) + num_qubits(second_state))
 end
