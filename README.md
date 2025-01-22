@@ -72,4 +72,4 @@ sum(outcomes) / shots
 
 ## Compatibility
 
-This package is compatible with Julia 1.6 and above.
+This package is compatible with Julia 1.9 and above.

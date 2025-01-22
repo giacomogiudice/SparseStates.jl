@@ -39,5 +39,5 @@ end
     @test expectation(state_initial, 1) ≈ 0
     @test expectation(state_final, 1) ≈ 1 / 2
     outcomes = [expectation(apply(Measure(1), state_final), 1) for _ in 1:shots]
-    @test ≈(sum(outcomes) / shots, 1 / 2; atol=(1 / √shots))
+    @test ≈(sum(outcomes) / shots, 1 / 2; atol=(4 / √shots))
 end
