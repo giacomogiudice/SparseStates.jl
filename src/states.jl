@@ -34,15 +34,33 @@ function Base.sort!(state::SparseState)
     return state
 end
 
+convert_to_keytype(state::SparseState, key) = convert(keytype(state), key)
+
+function convert_to_keytype(state::SparseState, key::AbstractString)
+    length(key) == num_qubits(state) ||
+        throw(ArgumentError("Key string length does not correspond to the number of qubits"))
+    (; masks) = state
+    parsed_key = mapreduce(|, key, masks) do c, m
+        if c == '0'
+            return zero(m)
+        elseif c == '1'
+            return m
+        else
+            throw(ArgumentError("key $(key) is expected to only have 0s and 1s"))
+        end
+    end
+    return parsed_key
+end
+
 function Base.haskey(state::SparseState, key)
-    key = convert(keytype(state), key)
+    key = convert_to_keytype(state, key)
     (; table) = state
     i = searchsortedfirst(table, key; by=first)
     return i ≤ length(table) && first(table[i]) == key
 end
 
 function Base.get(state::SparseState, key, default)
-    key = convert(keytype(state), key)
+    key = convert_to_keytype(state, key)
     (; table) = state
     i = searchsortedfirst(table, key; by=first)
     if i ≤ length(table)
@@ -55,7 +73,7 @@ function Base.get(state::SparseState, key, default)
 end
 
 function Base.get!(default::Callable, state::SparseState, key)
-    key = convert(keytype(state), key)
+    key = convert_to_keytype(state, key)
     (; table) = state
     i = searchsortedfirst(table, key; by=first)
     if i ≤ length(table)
@@ -68,8 +86,11 @@ function Base.get!(default::Callable, state::SparseState, key)
     return default
 end
 
+Base.getindex(state::SparseState, key::AbstractString) = getindex(state, convert_to_keytype(state, key))
+
 function Base.setindex!(state::SparseState, key, value)
-    key, value = convert(keytype(state), key), convert(valtype(state), value)
+    key = convert_to_keytype(state, key)
+    value = convert(valtype(state), value)
     table = table(state)
     i = searchsortedfirst(table, key; by=first)
     if i ≤ length(table)
