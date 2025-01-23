@@ -15,7 +15,7 @@ end
 DepolarizingChannel{N}(p::Number, inds) where {N} = DepolarizingChannel{N}(p, collect(inds))
 DepolarizingChannel(p::Number, inds::AbstractArray{NTuple{N,Int}}) where {N} = DepolarizingChannel{N}(p, vec(inds))
 DepolarizingChannel(p::Int, inds::Vararg{AbstractArray{Int},N}) where {N} = DepolarizingChannel{N}(p, inds...)
-function DepolarizingChannel(inds::Vararg{<:Union{Int,AbstractArray{Int}},N}; p::Number) where {N}
+function DepolarizingChannel(inds::Vararg{U,N}; p::Number) where {U<:Union{Int,AbstractArray{Int}},N}
     return DepolarizingChannel{N}(p, inds...)
 end
 DepolarizingChannel{N}(p::Number) where {N} = (inds...) -> DepolarizingChannel{N}(p, inds...)

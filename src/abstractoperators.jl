@@ -65,7 +65,7 @@ macro operator(id, N, pairs...)
         end
 
         $(esc(Name))(inds::AbstractArray) = $(esc(Name))(vec(map(NTuple{$N,Int}, inds)))
-        $(esc(Name))(inds::Vararg{<:AbstractArray{Int},$N}) = $(esc(Name))(map(tuple, inds...))
+        $(esc(Name))(inds::Vararg{A,$N}) where {A<:AbstractArray{Int}} = $(esc(Name))(map(tuple, inds...))
         $(esc(Name))(inds::Vararg{Int,$N}) = $(esc(Name))([inds])
         $(esc(Name))(iterable) = $(esc(Name))(vec(collect(iterable)))
 
