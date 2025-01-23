@@ -63,7 +63,7 @@ jobs:
           version: '1' # Latest stable version
 
       - name: Cache
-        uses: julia-actions/cache@v1
+        uses: julia-actions/cache@v2
 
       - name: Run JuliaFormatter
         run: |
