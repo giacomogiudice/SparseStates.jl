@@ -205,3 +205,5 @@ function expectation(state::SparseState, i::Int)
     m = state.masks[i]
     return sum(!iszero(s & m) * abs2(v) for (s, v) in state)
 end
+
+expectation(state::SparseState, indices) = map(i -> expectation(state, i), indices)
