@@ -34,8 +34,8 @@ function apply!(channel::DepolarizingChannel{N}, state::SparseState) where {N}
     return state
 end
 
-@operator(Measure <: SuperOperator, 1)
-@operator(Reset <: SuperOperator, 1)
+@super_operator Measure 1
+@super_operator Reset 1
 
 function apply!(channel::Measure, state::SparseState{K,V}) where {K,V}
     (; table, masks) = state

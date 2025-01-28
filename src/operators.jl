@@ -1,21 +1,24 @@
 # Use the `@operator` macro to define common constructor patterns
-@operator(I, 1)
-@operator(X, 1)
-@operator(Y, 1)
-@operator(Z, 1)
+@operator I 1
+@operator X 1
+@operator Y 1
+@operator Z 1
 
-@operator(S, 1)
-@operator(H, 1)
-@operator(T, 1)
+@operator S 1
+@operator H 1
+@operator T 1
 
-@operator(CX, 2)
-@operator(CY, 2)
-@operator(CZ, 2)
-@operator(SWAP, 2)
 
-@operator(CCX, 3)
-@operator(CCY, 3)
-@operator(CCZ, 3)
+@operator CX 2
+@operator CY 2
+@operator CZ 2
+
+@operator SWAP 2
+@operator CCX 3
+@operator CCY 3
+@operator CCZ 3
+
+
 
 # Aliases
 CNOT = CX

@@ -29,46 +29,61 @@ end
 
 function support end
 
-macro operator(id, N, pairs...)
-    # Parse identifier
-    if id isa Expr
-        if id.head == :(<:)
-            Name, Parent = id.args
-        else
-            error("Expected name and parent to be of the form `Name::Parent`")
-        end
+# Define `@operator` and `@super_operator` macros
+function parse_field(expr::Union{Symbol,Expr})
+    if expr isa Symbol
+        key = expr
+        type = Any
+        value = ()
+    elseif Meta.isexpr(expr, :(::))
+        key, type = expr.args
+        value = ()
+    elseif Meta.isexpr(expr, :(=))
+        sub_expr, value = expr.args
+        key, type, _ = parse_field(sub_expr)
     else
-        Name = id
-        Parent = Operator
+        throw(ArgumentError("Expected optional arguments of the form `field[::type] [=default], got $(expr)`"))
     end
+    return key, type, value
+end
 
-    # params = []
-    # for expr in pairs
-    #     if expr.head == :(=)
-    #         # Default argument
-    #         type, value = expr.args
-    #         push!(params, type)
-    #     elseif expr.head == :(::)
-    #         # No default argument
-    #         push!(params, expr)
-    #     else
-    #         error("Expected optional arguments of the form `field::Type [=default]`")
-    #     end
-    # end
-
+function generic_operator(parent, identifier, N, fields...)
+    if Meta.isexpr(identifier, :curly)
+        struct_name, parametric_types... = identifier.args
+    else
+        struct_name = identifier
+        parametric_types = []
+    end
+    parametric_types
+    parsed_fields = map(parse_field, fields)
+    
+    names = [key for (key, _, _) in parsed_fields]
+    types = [type for (_, type, _) in parsed_fields]
+    names_with_types = [Expr(:(::), key, type) for (key, type, _) in parsed_fields]
+    names_with_types_and_values = [Expr(:kw, Expr(:(::), key, type), value) for (key, type, value) in parsed_fields]
     return quote
-        struct $Name <: $Parent
-            # $(params...)
+        struct $identifier <: $parent
             support::Vector{NTuple{$N,Int}}
+            $(names_with_types...)
 
-            $Name(support::AbstractVector{NTuple{$N,Int}}) = new(support)
+            function $struct_name(support::AbstractVector{NTuple{$N,Int}}; $(names_with_types_and_values...)) where {$(parametric_types...)}
+                return new{$(types...)}(support, $(names...))
+            end
         end
 
-        $(esc(Name))(inds::AbstractArray) = $(esc(Name))(vec(map(NTuple{$N,Int}, inds)))
-        $(esc(Name))(inds::Vararg{A,$N}) where {A<:AbstractArray{Int}} = $(esc(Name))(map(tuple, inds...))
-        $(esc(Name))(inds::Vararg{Int,$N}) = $(esc(Name))([inds])
-        $(esc(Name))(iterable) = $(esc(Name))(vec(collect(iterable)))
+        $(esc(struct_name))(inds::AbstractArray; kwargs...) = $(esc(struct_name))(vec(map(NTuple{$N,Int}, inds)); kwargs...)
+        $(esc(struct_name))(inds::AbstractArray{Int}...; kwargs...) = $(esc(struct_name))(map(tuple, inds...); kwargs...)
+        $(esc(struct_name))(iterable; kwargs...) = $(esc(struct_name))(vec(collect(iterable)); kwargs...)
+        $(esc(struct_name))(inds::Int...; kwargs...) = $(esc(struct_name))(inds; kwargs...)
 
-        SparseStates.support(op::$(esc(Name))) = op.support
+        SparseStates.support(op::$(esc(struct_name))) = op.support
     end
+end
+
+macro operator(identifier, N, parameters...)
+    return generic_operator(Operator, identifier, N, parameters...)
+end
+
+macro super_operator(identifier, N, parameters...)
+    return generic_operator(SuperOperator, identifier, N, parameters...)
 end
