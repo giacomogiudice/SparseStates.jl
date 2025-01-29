@@ -9,6 +9,8 @@ struct SparseState{K,V} <: AbstractDict{K,V}
 end
 
 function SparseState(table::AbstractVector{Pair{K,V}}, qubits::Int) where {K,V}
+    qubits > 8 * sizeof(K) &&
+        throw(ArgumentError("The number of qubits $qubits exceeds the number of bits in the keytype $K"))
     masks = map(n -> one(K) << n, 0:(qubits - 1))
     return SparseState{K,V}(sort(table; by=first), masks)
 end
