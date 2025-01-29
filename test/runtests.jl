@@ -42,8 +42,7 @@ const VAL_TYPES = (REAL_VAL_TYPES..., COMPLEX_VAL_TYPES...)
 end
 
 @testset "Single-qubit operators" begin
-    @testset "Single-qubit operator for SparseState{$K,$V}" for (K, V) in
-                                                                Iterators.product(KEY_TYPES, COMPLEX_VAL_TYPES)
+    @testset "Operators with SparseState{$K,$V}" for (K, V) in Iterators.product(KEY_TYPES, COMPLEX_VAL_TYPES)
         N = rand(1:(8 * sizeof(K) - 1))
         n = rand(1:N)
         arr = rand(0:1, N)
