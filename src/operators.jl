@@ -130,7 +130,7 @@ function apply!(gate::U, state::SparseState; droptol=default_droptol(keytype(sta
             # One state just changes sign, it remains in the current table
             table[i] = s => conditional_conj(α, !iszero(s & m)) * v
             # Save flipped state to new table
-            push!(new_table, s ⊻ m => im * conditional_conj(im * β, !iszero(s & m)) * v)
+            push!(new_table, s ⊻ m => -im * conditional_conj(im * β, !iszero(s & m)) * v)
         end
         # Merge new table and combine it with old one
         sort!(new_table; by=first)
@@ -141,17 +141,17 @@ end
 
 function apply!(gate::RX, state::SparseState; kwargs...)
     (; θ) = gate
-    return apply!(U(support(gate); θ=θ, ϕ=(π / 2), λ=-(π / 2)), state)
+    return apply!(U(support(gate); θ=θ, ϕ=-(π / 2), λ=(+(π / 2))), state)
 end
 
 function apply!(gate::RY, state::SparseState; kwargs...)
     (; θ) = gate
-    return apply!(U(support(gate); θ=θ, ϕ=0.0, λ=0.0), state)
+    return apply!(U(support(gate); θ=θ, ϕ=zero(θ), λ=zero(θ)), state)
 end
 
 function apply!(gate::RZ, state::SparseState; kwargs...)
     (; table, masks) = state
-    (; Θ) = gate
+    (; θ) = gate
     z = convert(valtype(state), exp(-(im / 2) * θ))
     m = mapreduce(inds -> masks[only(inds)], ⊻, support(gate))
     @inbounds for i in eachindex(table)

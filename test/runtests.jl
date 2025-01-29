@@ -3,7 +3,9 @@ using LinearAlgebra
 using SparseStates
 
 const KEY_TYPES = (UInt8, UInt16, UInt32, UInt64, UInt128)
-const VAL_TYPES = (Float32, Float64, ComplexF32, ComplexF64)
+const REAL_VAL_TYPES = (Float32, Float64)
+const COMPLEX_VAL_TYPES = (ComplexF32, ComplexF64)
+const VAL_TYPES = (REAL_VAL_TYPES..., COMPLEX_VAL_TYPES...)
 
 @testset "SparseState initialization and operations" begin
     @testset "SparseState{$K,$V}" for (K, V) in Iterators.product(KEY_TYPES, VAL_TYPES)
@@ -22,8 +24,8 @@ const VAL_TYPES = (Float32, Float64, ComplexF32, ComplexF64)
         @test dot(state, state) ≈ 1
         @test norm(state) ≈ 1
 
-        state_first = apply(X(2), SparseState{K,V}(2))
-        state_second = apply(X(3), SparseState{K,V}(3))
+        state_first = SparseState{K,V}("01" => 1, 2)
+        state_second = SparseState{K,V}("001" => 1, 3)
         @test state_first["01"] ≈ 1
         @test state_second["001"] ≈ 1
         @test norm(state_first) ≈ norm(state_second) ≈ 1
@@ -31,11 +33,75 @@ const VAL_TYPES = (Float32, Float64, ComplexF32, ComplexF64)
         @test num_qubits(state_prod) == 2 + 3
         @test length(state_prod) == 1
         @test state_prod["01001"] ≈ 1
+
+        state = SparseState{K,V}(["00" => 1, "01" => 1, "10" => 1, "11" => 1], 2)
+        @test norm(state) ≈ 2
+        normalize!(state)
+        @test norm(state) ≈ 1
     end
 end
 
-@testset "Circuits and operators" begin
-    # TODO
+@testset "Single-qubit operators" begin
+    @testset "Single-qubit operator for SparseState{$K,$V}" for (K, V) in
+                                                                Iterators.product(KEY_TYPES, COMPLEX_VAL_TYPES)
+        N = rand(1:(8 * sizeof(K) - 1))
+        n = rand(1:N)
+        arr = rand(0:1, N)
+        arr[n] = 0
+        up = SparseState{K,V}(join(arr) => 1, N)
+        arr[n] = 1
+        dn = SparseState{K,V}(join(arr) => 1, N)
+
+        α, β = normalize!(randn(V, 2))
+        state_initial = α * up + β * dn
+        @test norm(state_initial) ≈ 1
+
+        # `X` gate
+        state_final = @inferred apply(X(n), state_initial)
+        @test state_final ≈ β * up + α * dn
+
+        # `Y` gate
+        state_final = @inferred apply(Y(n), state_initial)
+        @test state_final ≈ -im * β * up + im * α * dn
+
+        # `Z` gate
+        state_final = @inferred apply(Z(n), state_initial)
+        @test state_final ≈ α * up - β * dn
+
+        # `H` gate
+        state_final = @inferred apply(H(n), state_initial)
+        @test state_final ≈ (α + β) / √2 * up + (α - β) / √2 * dn
+
+        # `S` gate
+        state_final = @inferred apply(S(n), state_initial)
+        @test state_final ≈ α * up + im * β * dn
+
+        # `T` gate
+        state_final = @inferred apply(T(n), state_initial)
+        @test state_final ≈ α * up + √im * β * dn
+
+        # `U` gate
+        θ, ϕ, λ = 4π * rand(real(V), 3)
+        state_final = @inferred apply(U(n; θ, ϕ, λ), state_initial)
+        @test state_final ≈
+            (α * exp(-(im / 2) * (ϕ + λ)) * cos(θ / 2) - β * exp(-(im / 2) * (ϕ - λ)) * sin(θ / 2)) * up +
+              (α * exp(+(im / 2) * (ϕ - λ)) * sin(θ / 2) + β * exp(+(im / 2) * (ϕ + λ)) * cos(θ / 2)) * dn
+
+        # `RX` gate
+        θ = 4π * rand(real(V))
+        state_final = @inferred apply(RX(n; θ), state_initial)
+        @test state_final ≈ (α * cos(θ / 2) - im * β * sin(θ / 2)) * up + (-im * α * sin(θ / 2) + β * cos(θ / 2)) * dn
+
+        # `RY` gate
+        θ = 4π * rand(real(V))
+        state_final = @inferred apply(RY(n; θ), state_initial)
+        @test state_final ≈ (α * cos(θ / 2) - β * sin(θ / 2)) * up + (α * sin(θ / 2) + β * cos(θ / 2)) * dn
+
+        # `RZ` gate
+        θ = 4π * rand(real(V))
+        state_final = @inferred apply(RZ(n; θ), state_initial)
+        @test state_final ≈ α * exp(-(im / 2) * θ) * up + β * exp(+(im / 2) * θ) * dn
+    end
 end
 
 @testset "Single-qubit superposition" begin
@@ -66,7 +132,7 @@ end
     @test all(isapprox(rec...; atol=4 * eps()) for rec in outcomes)
 end
 
-@testset "Bacon-Shor error-correction" begin
+@testset "Bacon-Shor error correction" begin
     # Circuit adapted from https://arxiv.org/abs/2404.11663
     p = 0.0082 # pseudo-threshold for `Z` eigenstates
     shots = 100000
