@@ -47,8 +47,9 @@ jobs:
       - name: Upload coverage
         uses: codecov/codecov-action@v5
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          slug: giacomogiudice/SparseStates.jl
+          files: lcov.info
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
   
   style-check:
     name: Style check
