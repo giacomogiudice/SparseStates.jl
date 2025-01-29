@@ -11,7 +11,7 @@ apply(op::AbstractOperator, state::SparseState; kwargs...) = sort!(apply!(op, co
 function Base.show(io::IO, op::O) where {O<:AbstractOperator}
     indices = support(op)
     parameters = [name => getfield(op, name) for name in fieldnames(O) if name ≠ :support]
-    
+
     print(io, nameof(O), "(")
     if length(indices) == 1
         print(io, join(only(indices), ", "))
@@ -63,7 +63,7 @@ function generic_operator(parent, identifier, N, fields...)
         parametric_types = []
     end
     parsed_fields = map(parse_field, fields)
-    
+
     names = [key for (key, _, _) in parsed_fields]
     types = [first(parse_field(expr)) for expr in parametric_types]
     names_with_types = [Expr(:(::), key, type) for (key, type, _) in parsed_fields]
@@ -73,13 +73,19 @@ function generic_operator(parent, identifier, N, fields...)
             support::Vector{NTuple{$N,Int}}
             $(names_with_types...)
 
-            function $struct_name(support::AbstractVector{NTuple{$N,Int}}; $(names_with_types_and_values...)) where {$(parametric_types...)}
+            function $struct_name(
+                support::AbstractVector{NTuple{$N,Int}}; $(names_with_types_and_values...)
+            ) where {$(parametric_types...)}
                 return new{$(types...)}(support, $(names...))
             end
         end
 
-        $(esc(struct_name))(inds::AbstractArray; kwargs...) = $(esc(struct_name))(vec(map(NTuple{$N,Int}, inds)); kwargs...)
-        $(esc(struct_name))(inds::AbstractArray{Int}...; kwargs...) = $(esc(struct_name))(map(tuple, inds...); kwargs...)
+        function $(esc(struct_name))(inds::AbstractArray; kwargs...)
+            return $(esc(struct_name))(vec(map(NTuple{$N,Int}, inds)); kwargs...)
+        end
+        function $(esc(struct_name))(inds::AbstractArray{Int}...; kwargs...)
+            return $(esc(struct_name))(map(tuple, inds...); kwargs...)
+        end
         $(esc(struct_name))(inds::Int...; kwargs...) = $(esc(struct_name))([inds]; kwargs...)
         $(esc(struct_name))(iterable; kwargs...) = $(esc(struct_name))(vec(collect(iterable)); kwargs...)
 

@@ -8,10 +8,10 @@
 @operator H 1
 @operator T 1
 
-@operator U{T<:Number} 1 θ::T=0. ϕ::T=0. λ::T=0.
-@operator RX{T<:Number} 1 θ::T=0.
-@operator RY{T<:Number} 1 θ::T=0.
-@operator RZ{T<:Number} 1 θ::T=0.
+@operator U{T<:Number} 1 θ::T = 0.0 ϕ::T = 0.0 λ::T = 0.0
+@operator RX{T<:Number} 1 θ::T = 0.0
+@operator RY{T<:Number} 1 θ::T = 0.0
+@operator RZ{T<:Number} 1 θ::T = 0.0
 
 @operator CX 2
 @operator CY 2
@@ -146,7 +146,7 @@ end
 
 function apply!(gate::RY, state::SparseState; kwargs...)
     (; θ) = gate
-    return apply!(U(support(gate); θ=θ, ϕ=0., λ=0.), state)
+    return apply!(U(support(gate); θ=θ, ϕ=0.0, λ=0.0), state)
 end
 
 function apply!(gate::RZ, state::SparseState; kwargs...)
