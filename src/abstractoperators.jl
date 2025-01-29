@@ -10,15 +10,23 @@ apply(op::AbstractOperator, state::SparseState; kwargs...) = sort!(apply!(op, co
 
 function Base.show(io::IO, op::O) where {O<:AbstractOperator}
     indices = support(op)
+    parameters = [name => getfield(op, name) for name in fieldnames(O) if name ≠ :support]
+    
+    print(io, nameof(O), "(")
     if length(indices) == 1
-        print(io, "$(O)($(join(only(indices), ", ")))")
+        print(io, join(only(indices), ", "))
     else
         if eltype(indices) == Tuple{Int}
-            print(io, "$(O)([$(join((only(i) for i in indices), ", "))])")
+            print(io, "[", join((only(i) for i in indices), ", "), "]")
         else
-            print(io, "$(O)([$(join(indices, ", "))])")
+            print(io, "[", join(indices, ", "), "]")
         end
     end
+    if !isempty(parameters)
+        print(io, "; ", join(("$(name)=$(value)" for (name, value) in parameters), ", "))
+    end
+    print(io, ")")
+
     return nothing
 end
 
@@ -35,7 +43,7 @@ function parse_field(expr::Union{Symbol,Expr})
         key = expr
         type = Any
         value = ()
-    elseif Meta.isexpr(expr, :(::))
+    elseif Meta.isexpr(expr, :(::)) || Meta.isexpr(expr, :(<:))
         key, type = expr.args
         value = ()
     elseif Meta.isexpr(expr, :(=))
@@ -54,11 +62,10 @@ function generic_operator(parent, identifier, N, fields...)
         struct_name = identifier
         parametric_types = []
     end
-    parametric_types
     parsed_fields = map(parse_field, fields)
     
     names = [key for (key, _, _) in parsed_fields]
-    types = [type for (_, type, _) in parsed_fields]
+    types = [first(parse_field(expr)) for expr in parametric_types]
     names_with_types = [Expr(:(::), key, type) for (key, type, _) in parsed_fields]
     names_with_types_and_values = [Expr(:kw, Expr(:(::), key, type), value) for (key, type, value) in parsed_fields]
     return quote
@@ -73,8 +80,8 @@ function generic_operator(parent, identifier, N, fields...)
 
         $(esc(struct_name))(inds::AbstractArray; kwargs...) = $(esc(struct_name))(vec(map(NTuple{$N,Int}, inds)); kwargs...)
         $(esc(struct_name))(inds::AbstractArray{Int}...; kwargs...) = $(esc(struct_name))(map(tuple, inds...); kwargs...)
+        $(esc(struct_name))(inds::Int...; kwargs...) = $(esc(struct_name))([inds]; kwargs...)
         $(esc(struct_name))(iterable; kwargs...) = $(esc(struct_name))(vec(collect(iterable)); kwargs...)
-        $(esc(struct_name))(inds::Int...; kwargs...) = $(esc(struct_name))(inds; kwargs...)
 
         SparseStates.support(op::$(esc(struct_name))) = op.support
     end
