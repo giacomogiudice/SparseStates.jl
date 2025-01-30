@@ -76,6 +76,7 @@ function generic_operator(parent, identifier, N, fields...)
             function $struct_name(
                 support::AbstractVector{NTuple{$N,Int}}; $(names_with_types_and_values...)
             ) where {$(parametric_types...)}
+                all(allunique, support) || throw(ArgumentError("Duplicate indices in support $(support)"))
                 return new{$(types...)}(support, $(names...))
             end
         end
