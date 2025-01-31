@@ -176,6 +176,15 @@ function sorted_merge!(t₁::AbstractVector{Pair{K,V₁}}, t₂::AbstractVector{
     return t₁
 end
 
+function sorted_merge!(
+    first_state::SparseState{K,V₁}, second_state::SparseState{K,V₂}; droptol=default_droptol(promote_type(V₁, V₂))
+) where {K,V₁,V₂}
+    @boundscheck num_qubits(first_state) == num_qubits(second_state) ||
+        throw(ArgumentError("States do not have the same number of qubits"))
+    sorted_merge!(table(first_state), table(second_state); droptol)
+    return first_state
+end
+
 function Base.isapprox(first_state::SparseState{K,V₁}, second_state::SparseState{K,V₂}; kwargs...) where {K,V₁,V₂}
     @boundscheck num_qubits(first_state) == num_qubits(second_state) ||
         throw(ArgumentError("States do not have the same number of qubits"))
@@ -205,21 +214,6 @@ function Base.isapprox(first_state::SparseState{K,V₁}, second_state::SparseSta
     return true
 end
 
-function Base.:+(
-    first_state::SparseState{K,V₁}, second_state::SparseState{K,V₂}; droptol=default_droptol(promote_type(V₁, V₂))
-) where {K,V₁,V₂}
-    @boundscheck num_qubits(first_state) == num_qubits(second_state) ||
-        throw(ArgumentError("States do not have the same number of qubits"))
-    new_table = sorted_merge!(copy(table(first_state)), copy(table(second_state)); droptol)
-    return SparseState(new_table, num_qubits(first_state))
-end
-
-Base.:*(α::Number, state::SparseState) = state * α
-Base.:*(state::SparseState, α::Number) = rmul!(copy(state), α)
-Base.:-(state::SparseState) = -one(valtype(state)) * state
-Base.:-(first_state::SparseState, second_state::SparseState) = first_state + (-second_state)
-Base.:/(state::SparseState, α::Number) = inv(α) * state
-
 LinearAlgebra.lmul!(α::Number, state::SparseState) = rmul!(state, α)
 
 function LinearAlgebra.rmul!(state::SparseState, α::Number)
@@ -230,6 +224,13 @@ function LinearAlgebra.rmul!(state::SparseState, α::Number)
     end
     return state
 end
+
+Base.:+(first_state::SparseState, second_state::SparseState) = sorted_merge!(copy(first_state), copy(second_state))
+Base.:-(state::SparseState) = -one(valtype(state)) * state
+Base.:-(first_state::SparseState, second_state::SparseState) = first_state + (-second_state)
+Base.:*(α::Number, state::SparseState) = state * α
+Base.:*(state::SparseState, α::Number) = rmul!(copy(state), α)
+Base.:/(state::SparseState, α::Number) = state * inv(α)
 
 function LinearAlgebra.kron(first_state::SparseState{K,V₁}, second_state::SparseState{K,V₂}) where {K,V₁,V₂}
     new_table = [

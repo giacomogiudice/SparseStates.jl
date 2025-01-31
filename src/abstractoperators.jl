@@ -57,40 +57,36 @@ end
 
 function generic_operator(parent, identifier, N, fields...)
     if Meta.isexpr(identifier, :curly)
-        struct_name, parametric_types... = identifier.args
+        name, parametric_types... = identifier.args
     else
-        struct_name = identifier
+        name = identifier
         parametric_types = []
     end
     parsed_fields = map(parse_field, fields)
 
-    names = [key for (key, _, _) in parsed_fields]
+    keys = [key for (key, _, _) in parsed_fields]
     types = [first(parse_field(expr)) for expr in parametric_types]
-    names_with_types = [Expr(:(::), key, type) for (key, type, _) in parsed_fields]
-    names_with_types_and_values = [Expr(:kw, Expr(:(::), key, type), value) for (key, type, value) in parsed_fields]
+    keys_with_types = [Expr(:(::), key, type) for (key, type, _) in parsed_fields]
+    keys_with_types_and_values = [Expr(:kw, Expr(:(::), key, type), value) for (key, type, value) in parsed_fields]
     return quote
         struct $identifier <: $parent
             support::Vector{NTuple{$N,Int}}
-            $(names_with_types...)
+            $(keys_with_types...)
 
-            function $struct_name(
-                support::AbstractVector{NTuple{$N,Int}}; $(names_with_types_and_values...)
+            function $name(
+                support::AbstractVector{NTuple{$N,Int}}; $(keys_with_types_and_values...)
             ) where {$(parametric_types...)}
                 all(allunique, support) || throw(ArgumentError("Duplicate indices in support $(support)"))
-                return new{$(types...)}(support, $(names...))
+                return new{$(types...)}(support, $(keys...))
             end
         end
 
-        function $(esc(struct_name))(inds::AbstractArray; kwargs...)
-            return $(esc(struct_name))(vec(map(NTuple{$N,Int}, inds)); kwargs...)
-        end
-        function $(esc(struct_name))(inds::AbstractArray{Int}...; kwargs...)
-            return $(esc(struct_name))(map(tuple, inds...); kwargs...)
-        end
-        $(esc(struct_name))(inds::Int...; kwargs...) = $(esc(struct_name))([inds]; kwargs...)
-        $(esc(struct_name))(iterable; kwargs...) = $(esc(struct_name))(vec(collect(iterable)); kwargs...)
+        $(esc(name))(inds::AbstractArray; kwargs...) = $(esc(name))(vec(map(NTuple{$N,Int}, inds)); kwargs...)
+        $(esc(name))(inds::AbstractArray{Int}...; kwargs...) = $(esc(name))(map(tuple, inds...); kwargs...)
+        $(esc(name))(inds::Int...; kwargs...) = $(esc(name))([inds]; kwargs...)
+        $(esc(name))(iterable; kwargs...) = $(esc(name))(vec(collect(iterable)); kwargs...)
 
-        SparseStates.support(op::$(esc(struct_name))) = op.support
+        SparseStates.support(op::$(esc(name))) = op.support
     end
 end
 

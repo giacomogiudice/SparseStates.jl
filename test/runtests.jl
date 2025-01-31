@@ -172,7 +172,6 @@ end
         Reset([10, 11, 12]),
     )
     noise_model = [
-        H => DepolarizingChannel{1}(p),
         X => DepolarizingChannel{1}(p),
         Z => DepolarizingChannel{1}(p),
         CX => DepolarizingChannel{2}(p),
