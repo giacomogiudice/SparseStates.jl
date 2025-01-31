@@ -192,7 +192,7 @@ function Base.isapprox(first_state::SparseState{K,V₁}, second_state::SparseSta
     t₁, t₂ = table(first_state), table(second_state)
     i₁, i₂ = firstindex(t₁), firstindex(t₂)
     @label beginning
-    while i₁ ≤ lastindex(t₁)
+    @inbounds while i₁ ≤ lastindex(t₁)
         k₁, v₁ = t₁[i₁]
         while i₂ ≤ lastindex(t₂)
             k₂, v₂ = t₂[i₂]
@@ -248,10 +248,26 @@ LinearAlgebra.normalize!(state::SparseState, args...) = rmul!(state, 1 / norm(st
 function LinearAlgebra.dot(first_state::SparseState{K}, second_state::SparseState{K}) where {K}
     @boundscheck num_qubits(first_state) == num_qubits(second_state) ||
         throw(ArgumentError("States do not have the same number of qubits"))
-    return sum(first_state) do (s, v₁)
-        v₂ = get(second_state, s, zero(valtype(second_state)))
-        return conj(v₁) * v₂
+    # Add common elements, using the fact that the tables are sorted
+    s = zero(promote_type(valtype(first_state), valtype(second_state)))
+    t₁, t₂ = table(first_state), table(second_state)
+    i₂ = firstindex(t₂)
+    @inbounds for i₁ in eachindex(t₁)
+        k₁, v₁ = t₁[i₁]
+        k₂, v₂ = t₂[i₂]
+        while i₂ ≤ lastindex(t₂)
+            k₂, v₂ = t₂[i₂]
+            if k₂ < k₁
+                i₂ += 1
+            else
+                break
+            end
+        end
+        if k₁ == k₂
+            s += conj(v₁) * v₂
+        end
     end
+    return s
 end
 
 function expectation(state::SparseState, i::Int)
