@@ -112,7 +112,7 @@ function apply!(gate::H, state::SparseState; droptol=default_droptol(keytype(sta
     return state
 end
 
-function apply!(gate::U, state::SparseState; droptol=default_droptol(keytype(state)), kwargs...)
+function apply!(gate::U, state::SparseState; droptol=default_droptol(valtype(state)), kwargs...)
     (; table, masks) = state
     sort!(table; by=first)
     new_table = similar(table, 0)
@@ -141,12 +141,12 @@ end
 
 function apply!(gate::RX, state::SparseState; kwargs...)
     (; θ) = gate
-    return apply!(U(support(gate); θ=θ, ϕ=-(π / 2), λ=(+(π / 2))), state)
+    return apply!(U(support(gate); θ=θ, ϕ=-(π / 2), λ=(+(π / 2))), state; kwargs...)
 end
 
 function apply!(gate::RY, state::SparseState; kwargs...)
     (; θ) = gate
-    return apply!(U(support(gate); θ=θ, ϕ=zero(θ), λ=zero(θ)), state)
+    return apply!(U(support(gate); θ=θ, ϕ=zero(θ), λ=zero(θ)), state; kwargs...)
 end
 
 function apply!(gate::RZ, state::SparseState; kwargs...)
