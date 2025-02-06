@@ -66,17 +66,19 @@ support(channel::MeasureOperator) = support(channel.op)
 
 function apply!(channel::MeasureOperator, state::SparseState)
     (; op, callback) = channel
+    sort!(state)
     new_state = apply(op, state)
     # Probability of having outcome `false` (+1 eigenstate) is `(1 + real(⟨U⟩) / 2`
     p = (1 - real(dot(state, new_state))) / 2
     outcome = rand() < p
+    n = outcome ? √p : √(1 - p)
     # Output state is `(state ± new_state) / 2`
     if outcome
-        new_state *= -1
+        rmul!(new_state, -1)
     end
     # Merge states to perform addition
     sorted_merge!(state, new_state)
-    rmul!(state, 1 / 2)
+    rmul!(state, 1 / 2n)
     callback([outcome])
     return state
 end
