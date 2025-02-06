@@ -7,7 +7,7 @@ const REAL_VAL_TYPES = (Float32, Float64)
 const COMPLEX_VAL_TYPES = (ComplexF32, ComplexF64)
 const VAL_TYPES = (REAL_VAL_TYPES..., COMPLEX_VAL_TYPES...)
 
-@testset "SparseState initialization and operations" begin
+@testset "SparseStates" begin
     @testset "SparseState{$K,$V}" for (K, V) in Iterators.product(KEY_TYPES, VAL_TYPES)
         state = SparseState{K,V}(2)
         @test state isa AbstractDict
@@ -41,8 +41,8 @@ const VAL_TYPES = (REAL_VAL_TYPES..., COMPLEX_VAL_TYPES...)
     end
 end
 
-@testset "Single-qubit operators" begin
-    @testset "Operators with SparseState{$K,$V}" for (K, V) in Iterators.product(KEY_TYPES, COMPLEX_VAL_TYPES)
+@testset "Operators" begin
+    @testset "Single-qubit gates with SparseState{$K,$V}" for (K, V) in Iterators.product(KEY_TYPES, COMPLEX_VAL_TYPES)
         N = rand(1:(8 * sizeof(K) - 1))
         n = rand(1:N)
         arr = rand(0:1, N)
@@ -101,6 +101,32 @@ end
         state_final = @inferred apply(RZ(n; θ), state_initial)
         @test state_final ≈ α * exp(-(im / 2) * θ) * up + β * exp(+(im / 2) * θ) * dn
     end
+
+    @testset "Two-qubit gates with SparseState{$K,$V}" for (K, V) in Iterators.product(KEY_TYPES, COMPLEX_VAL_TYPES)
+        # N = rand(1:(8 * sizeof(K) - 1))
+        # m, n = rand(1:N, 2)
+        # arr = rand(0:1, N)
+        # arr[m], arr[n] = 0
+        # up = SparseState{K,V}(join(arr) => 1, N)
+        # arr[n] = 1
+        # dn = SparseState{K,V}(join(arr) => 1, N)
+    end
+end
+
+@testset "Circuits" begin
+    # TODO
+end
+
+@testset "Utilities" begin
+    state = SparseState(("00" => 1, "11" => 1), 2)
+    normalize!(state)
+    observables = pauli_decomposition(state)
+    @test sum(weight * real(dot(state, op, state)) for (op, weight) in observables) ≈ 1
+
+    state = SparseState(("000" => randn(), "111" => randn()), 3)
+    normalize!(state)
+    observables = pauli_decomposition(state)
+    @test sum(weight * real(dot(state, op, state)) for (op, weight) in observables) ≈ 1
 end
 
 @testset "Single-qubit superposition" begin
@@ -172,12 +198,13 @@ end
         Reset([10, 11, 12]),
     )
     noise_model = [
-        X => DepolarizingChannel{1}(p),
-        Z => DepolarizingChannel{1}(p),
-        CX => DepolarizingChannel{2}(p),
-        CZ => DepolarizingChannel{2}(p),
-        CCX => DepolarizingChannel{3}(p),
-        CCZ => DepolarizingChannel{3}(p),
+        H => DepolarizingChannel{1}(; p),
+        X => DepolarizingChannel{1}(; p),
+        Z => DepolarizingChannel{1}(; p),
+        CX => DepolarizingChannel{2}(; p),
+        CZ => DepolarizingChannel{2}(; p),
+        CCX => DepolarizingChannel{3}(; p),
+        CCZ => DepolarizingChannel{3}(; p),
     ]
 
     circuit_noisy = Circuit(
