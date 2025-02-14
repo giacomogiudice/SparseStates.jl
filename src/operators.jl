@@ -243,6 +243,7 @@ function apply!(gate::CCY, state::SparseState; kwargs...)
             c = !iszero(s & mᵢ) & !iszero(s & mⱼ)
             u = c * mₖ
             v *= im^c * conditional_minus(!iszero(s & u))
+            s ⊻= u
             table[i] = s => v
         end
     end

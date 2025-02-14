@@ -1,6 +1,10 @@
 using Test
+using Random
 using LinearAlgebra
 using SparseStates
+
+# Set randomness seed for reproducibility 
+Random.seed!(42)
 
 const KEY_TYPES = (UInt8, UInt16, UInt32, UInt64, UInt128)
 const REAL_VAL_TYPES = (Float32, Float64)
@@ -46,75 +50,177 @@ end
         N = rand(1:(8 * sizeof(K) - 1))
         n = rand(1:N)
         arr = rand(0:1, N)
+        c = Dict{String,V}()
+        basis = Dict{String,SparseState{K,V}}()
         arr[n] = 0
-        up = SparseState{K,V}(join(arr) => 1, N)
+        basis["0"] = SparseState{K,V}(join(arr) => 1, N)
         arr[n] = 1
-        dn = SparseState{K,V}(join(arr) => 1, N)
+        basis["1"] = SparseState{K,V}(join(arr) => 1, N)
 
+        # Create a superposition of basis states
         α, β = normalize!(randn(V, 2))
-        state_initial = α * up + β * dn
+        state_initial = α * basis["0"] + β * basis["1"]
         @test norm(state_initial) ≈ 1
 
         # `X` gate
         state_final = @inferred apply(X(n), state_initial)
-        @test state_final ≈ β * up + α * dn
+        @test state_final ≈ β * basis["0"] + α * basis["1"]
 
         # `Y` gate
         state_final = @inferred apply(Y(n), state_initial)
-        @test state_final ≈ -im * β * up + im * α * dn
+        @test state_final ≈ -im * β * basis["0"] + im * α * basis["1"]
 
         # `Z` gate
         state_final = @inferred apply(Z(n), state_initial)
-        @test state_final ≈ α * up - β * dn
+        @test state_final ≈ α * basis["0"] - β * basis["1"]
 
         # `H` gate
         state_final = @inferred apply(H(n), state_initial)
-        @test state_final ≈ (α + β) / √2 * up + (α - β) / √2 * dn
+        @test state_final ≈ (α + β) / √2 * basis["0"] + (α - β) / √2 * basis["1"]
 
         # `S` gate
         state_final = @inferred apply(S(n), state_initial)
-        @test state_final ≈ α * up + im * β * dn
+        @test state_final ≈ α * basis["0"] + im * β * basis["1"]
 
         # `T` gate
         state_final = @inferred apply(T(n), state_initial)
-        @test state_final ≈ α * up + √im * β * dn
+        @test state_final ≈ α * basis["0"] + √im * β * basis["1"]
 
         # `U` gate
         θ, ϕ, λ = 4π * rand(real(V), 3)
         state_final = @inferred apply(U(n; θ, ϕ, λ), state_initial)
         @test state_final ≈
-            (α * exp(-(im / 2) * (ϕ + λ)) * cos(θ / 2) - β * exp(-(im / 2) * (ϕ - λ)) * sin(θ / 2)) * up +
-              (α * exp(+(im / 2) * (ϕ - λ)) * sin(θ / 2) + β * exp(+(im / 2) * (ϕ + λ)) * cos(θ / 2)) * dn
+            (α * exp(-(im / 2) * (ϕ + λ)) * cos(θ / 2) - β * exp(-(im / 2) * (ϕ - λ)) * sin(θ / 2)) * basis["0"] +
+              (α * exp(+(im / 2) * (ϕ - λ)) * sin(θ / 2) + β * exp(+(im / 2) * (ϕ + λ)) * cos(θ / 2)) * basis["1"]
 
         # `RX` gate
         θ = 4π * rand(real(V))
         state_final = @inferred apply(RX(n; θ), state_initial)
-        @test state_final ≈ (α * cos(θ / 2) - im * β * sin(θ / 2)) * up + (-im * α * sin(θ / 2) + β * cos(θ / 2)) * dn
+        @test state_final ≈
+            (α * cos(θ / 2) - im * β * sin(θ / 2)) * basis["0"] + (-im * α * sin(θ / 2) + β * cos(θ / 2)) * basis["1"]
 
         # `RY` gate
         θ = 4π * rand(real(V))
         state_final = @inferred apply(RY(n; θ), state_initial)
-        @test state_final ≈ (α * cos(θ / 2) - β * sin(θ / 2)) * up + (α * sin(θ / 2) + β * cos(θ / 2)) * dn
+        @test state_final ≈
+            (α * cos(θ / 2) - β * sin(θ / 2)) * basis["0"] + (α * sin(θ / 2) + β * cos(θ / 2)) * basis["1"]
 
         # `RZ` gate
         θ = 4π * rand(real(V))
         state_final = @inferred apply(RZ(n; θ), state_initial)
-        @test state_final ≈ α * exp(-(im / 2) * θ) * up + β * exp(+(im / 2) * θ) * dn
+        @test state_final ≈ α * exp(-(im / 2) * θ) * basis["0"] + β * exp(+(im / 2) * θ) * basis["1"]
     end
 
     @testset "Two-qubit gates with SparseState{$K,$V}" for (K, V) in Iterators.product(KEY_TYPES, COMPLEX_VAL_TYPES)
-        # N = rand(1:(8 * sizeof(K) - 1))
-        # m, n = rand(1:N, 2)
-        # arr = rand(0:1, N)
-        # arr[m], arr[n] = 0
-        # up = SparseState{K,V}(join(arr) => 1, N)
-        # arr[n] = 1
-        # dn = SparseState{K,V}(join(arr) => 1, N)
+        N = rand(1:(8 * sizeof(K) - 1))
+        m, n = randperm(N)[1:2]
+        arr = rand(0:1, N)
+
+        c = Dict{String,V}()
+        basis = Dict{String,SparseState{K,V}}()
+        coeffs = normalize!(randn(V, 2^2))
+        for (comb, v) in zip(Iterators.product(0:1, 0:1), coeffs)
+            arr[[m, n]] .= comb
+            basis[join(comb)] = SparseState{K,V}(join(arr) => 1, N)
+            c[join(comb)] = v
+        end
+
+        # Create a superposition of basis states
+        state_initial = c["00"] * basis["00"] + c["01"] * basis["01"] + c["10"] * basis["10"] + c["11"] * basis["11"]
+        @test norm(state_initial) ≈ 1
+
+        # `CX` gate
+        state_final = @inferred apply(CX(m, n), state_initial)
+        state_test = c["00"] * basis["00"] + c["01"] * basis["01"] + c["11"] * basis["10"] + c["10"] * basis["11"]
+        @test state_final ≈ state_test
+
+        # `CY` gate
+        state_final = @inferred apply(CY(m, n), state_initial)
+        state_test =
+            c["00"] * basis["00"] + c["01"] * basis["01"] - im * c["11"] * basis["10"] + im * c["10"] * basis["11"]
+        @test state_final ≈ state_test
+
+        # `CZ` gate
+        state_final = @inferred apply(CZ(m, n), state_initial)
+        state_test = c["00"] * basis["00"] + c["01"] * basis["01"] + c["10"] * basis["10"] - c["11"] * basis["11"]
+
+        # `SWAP` gate
+        state_final = @inferred apply(SWAP(m, n), state_initial)
+        state_test = c["00"] * basis["00"] + c["10"] * basis["01"] + c["01"] * basis["10"] + c["11"] * basis["11"]
+    end
+
+    @testset "Three-qubit gates with SparseState{$K,$V}" for (K, V) in Iterators.product(KEY_TYPES, COMPLEX_VAL_TYPES)
+        N = rand(1:(8 * sizeof(K) - 1))
+        m, n, l = randperm(N)[1:3]
+        arr = rand(0:1, N)
+
+        c = Dict{String,V}()
+        basis = Dict{String,SparseState{K,V}}()
+        coeffs = normalize!(randn(V, 2^3))
+        for (comb, v) in zip(Iterators.product(0:1, 0:1, 0:1), coeffs)
+            arr[[m, n, l]] .= comb
+            basis[join(comb)] = SparseState{K,V}(join(arr) => 1, N)
+            c[join(comb)] = v
+        end
+
+        # Create a superposition of basis states
+        state_initial =
+            c["000"] * basis["000"] +
+            c["001"] * basis["001"] +
+            c["010"] * basis["010"] +
+            c["011"] * basis["011"] +
+            c["100"] * basis["100"] +
+            c["101"] * basis["101"] +
+            c["110"] * basis["110"] +
+            c["111"] * basis["111"]
+        @test norm(state_initial) ≈ 1
+
+        # `CCX` gate
+        state_final = @inferred apply(CCX(m, n, l), state_initial)
+        state_test =
+            c["000"] * basis["000"] +
+            c["001"] * basis["001"] +
+            c["010"] * basis["010"] +
+            c["011"] * basis["011"] +
+            c["100"] * basis["100"] +
+            c["101"] * basis["101"] +
+            c["111"] * basis["110"] +
+            c["110"] * basis["111"]
+        @test state_final ≈ state_test
+
+        # `CCY` gate
+        state_final = @inferred apply(CCY(m, n, l), state_initial)
+        state_test =
+            c["000"] * basis["000"] +
+            c["001"] * basis["001"] +
+            c["010"] * basis["010"] +
+            c["011"] * basis["011"] +
+            c["100"] * basis["100"] +
+            c["101"] * basis["101"] +
+            -im * c["111"] * basis["110"] +
+            +im * c["110"] * basis["111"]
+        @test state_final ≈ state_test
+
+        # `CCZ` gate
+        state_final = @inferred apply(CCZ(m, n, l), state_initial)
+        state_test =
+            c["000"] * basis["000"] +
+            c["001"] * basis["001"] +
+            c["010"] * basis["010"] +
+            c["011"] * basis["011"] +
+            c["100"] * basis["100"] +
+            c["101"] * basis["101"] +
+            c["110"] * basis["110"] +
+            -c["111"] * basis["111"]
+        @test state_final ≈ state_test
     end
 end
 
 @testset "Circuits" begin
-    # TODO
+    circuit = H(1) * CX(1, 2)
+    @test circuit isa Circuit
+    @test circuit * CCX(1, 2, 3) isa Circuit
+    @test CCX(1, 2, 3) * circuit isa Circuit
 end
 
 @testset "Utilities" begin
@@ -139,7 +245,11 @@ end
     shots = 10000
     @test expectation(state_initial, 1) ≈ 0
     @test expectation(state_final, 1) ≈ 1 / 2
-    outcomes = [expectation(apply(Measure(1), state_final), 1) for _ in 1:shots]
+    outcomes = Bool[]
+    for _ in 1:shots
+        measurement = Measure(1; callback=(out, _) -> push!(outcomes, only(out)))
+        apply(measurement, state_final)
+    end
     @test ≈(sum(outcomes) / shots, 1 / 2; atol=(4 / √shots))
 end
 
@@ -153,8 +263,40 @@ end
     shots = 10000
     @test expectation(state_final, 1) ≈ 1 / 2
     @test expectation(state_final, 2) ≈ 1 / 2
-    outcomes = [expectation(apply(Measure([1, 2]), state_final), [1, 2]) for _ in 1:shots]
-    @test all(isapprox(rec...; atol=4 * eps()) for rec in outcomes)
+
+    outcomes = Bool[]
+    for _ in 1:shots
+        measurement = Measure(1; callback=(out, _) -> push!(outcomes, allequal(out)))
+        apply(measurement, state_final)
+    end
+    @test all(outcomes)
+end
+
+@testset "Teleportation" begin
+    circuit_teleportation = Circuit(
+        H(2),
+        CX(2, 3),
+        CX(1, 2),
+        MeasureOperator(Z(2); callback=((rec, state) -> only(rec) && apply!(X(3), state))),
+        Reset(2),
+        MeasureOperator(X(1); callback=((rec, state) -> only(rec) && apply!(Z(3), state))),
+        Reset(1),
+        SWAP(3, 1),
+    )
+
+    state_zero = SparseState{UInt8}(3)
+    state_one = apply(X(1), state_zero)
+
+    for _ in 1:10
+        α, β = normalize!(randn(ComplexF64, 2))
+
+        state_initial = α * state_zero + β * state_one
+        state_final = apply(circuit_teleportation, state_initial)
+
+        @test abs2(dot(state_zero, state_final)) ≈ abs2(α)
+        @test abs2(dot(state_one, state_final)) ≈ abs2(β)
+        @test abs2(dot(state_final, state_initial)) ≈ 1
+    end
 end
 
 @testset "Bacon-Shor error correction" begin
