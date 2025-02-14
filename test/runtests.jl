@@ -139,7 +139,11 @@ end
     shots = 10000
     @test expectation(state_initial, 1) ≈ 0
     @test expectation(state_final, 1) ≈ 1 / 2
-    outcomes = [expectation(apply(Measure(1), state_final), 1) for _ in 1:shots]
+    outcomes = Bool[]
+    for _ in 1:shots
+        measurement = Measure(1; callback=(out, _) -> push!(outcomes, only(out)))
+        apply(measurement, state_final)
+    end
     @test ≈(sum(outcomes) / shots, 1 / 2; atol=(4 / √shots))
 end
 
@@ -153,8 +157,40 @@ end
     shots = 10000
     @test expectation(state_final, 1) ≈ 1 / 2
     @test expectation(state_final, 2) ≈ 1 / 2
-    outcomes = [expectation(apply(Measure([1, 2]), state_final), [1, 2]) for _ in 1:shots]
-    @test all(isapprox(rec...; atol=4 * eps()) for rec in outcomes)
+
+    outcomes = Bool[]
+    for _ in 1:shots
+        measurement = Measure(1; callback=(out, _) -> push!(outcomes, allequal(out)))
+        apply(measurement, state_final)
+    end
+    @test all(outcomes)
+end
+
+@testset "Teleportation" begin
+    circuit_teleportation = Circuit(
+        H(2),
+        CX(2, 3),
+        CX(1, 2),
+        MeasureOperator(Z(2); callback=((rec, state) -> only(rec) && apply!(X(3), state))),
+        Reset(2),
+        MeasureOperator(X(1); callback=((rec, state) -> only(rec) && apply!(Z(3), state))),
+        Reset(1),
+        SWAP(3, 1),
+    )
+
+    state_zero = SparseState{UInt8}(3)
+    state_one = apply(X(1), state_zero)
+
+    for _ in 1:10
+        α, β = normalize!(randn(ComplexF64, 2))
+
+        state_initial = α * state_zero + β * state_one
+        state_final = apply(circuit_teleportation, state_initial)
+
+        @test abs2(dot(state_zero, state_final)) ≈ abs2(α)
+        @test abs2(dot(state_one, state_final)) ≈ abs2(β)
+        @test abs2(dot(state_final, state_initial)) ≈ 1
+    end
 end
 
 @testset "Bacon-Shor error correction" begin
