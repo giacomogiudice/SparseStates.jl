@@ -68,9 +68,25 @@ function MeasureOperator(ops::AbstractArray{O}; callback::C=default_callback) wh
 end
 
 MeasureOperator(ops::AbstractOperator...; kwargs...) = MeasureOperator([ops...]; kwargs...)
+MeasureOperator(iterable; kwargs...) = MeasureOperator(vec(collect(iterable)); kwargs...)
 
 Base.parent(channel::MeasureOperator) = channel.ops
 support(channel::MeasureOperator) = mapreduce(support, vcat, parent(channel); init=Tuple{Vararg{Int}}[])
+
+function Base.show(io::IO, channel::MeasureOperator)
+    (; ops, callback) = channel
+
+    print(io, "MeasureOperator", "(")
+    if length(ops) == 1
+        print(io, only(ops))
+    else
+        print(io, "[", join(ops, ", "), "]")
+    end
+    print(io, "; ", "callback=$(callback)")
+    print(io, ")")
+
+    return nothing
+end
 
 function apply!(channel::MeasureOperator, state::SparseState)
     (; ops, callback) = channel
