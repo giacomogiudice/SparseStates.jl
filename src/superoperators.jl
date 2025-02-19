@@ -3,7 +3,7 @@ using Base: Callable
 # Cache all combinations up to support of length 3
 const PAULI_COMBINATIONS = ntuple(l -> collect(pauli_combinations(l)), 3)
 
-default_callback(outcomes, state::SparseState) = Returns(nothing)
+default_callback(outcomes, state::SparseState) = nothing
 
 @super_operator Reset{C<:Callable} 1 callback::C = default_callback
 @super_operator Measure{C<:Callable} 1 callback::C = default_callback

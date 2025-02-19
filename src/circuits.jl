@@ -1,19 +1,16 @@
-struct Circuit <: AbstractOperator
-    ops::Vector{<:AbstractOperator}
+struct Circuit{T<:Tuple} <: AbstractOperator
+    ops::T
 
-    Circuit(ops::AbstractVector) = new(Vector(ops))
-    Circuit() = new(AbstractOperator[])
+    Circuit(ops::AbstractOperator...) = new{typeof(ops)}(ops)
 end
 
-Circuit(circuit::Circuit) = Circuit(parent(circuit))
-Circuit(op::AbstractOperator) = Circuit([op])
-Circuit(ops::AbstractOperator...) = Circuit(reduce(*, ops))
+Circuit(circuit::Circuit) = Circuit(parent(circuit)...)
 Circuit(generator) = Circuit(reduce(*, generator))
 
-Base.:*(x::AbstractOperator, y::AbstractOperator) = Circuit([x, y])
-Base.:*(x::Circuit, y::AbstractOperator) = Circuit(vcat(parent(x), y))
-Base.:*(x::AbstractOperator, y::Circuit) = Circuit(vcat(x, parent(y)))
-Base.:*(x::Circuit, y::Circuit) = Circuit(vcat(parent(x), parent(y)))
+Base.:*(x::AbstractOperator, y::AbstractOperator) = Circuit(x, y)
+Base.:*(x::Circuit, y::AbstractOperator) = Circuit(parent(x)..., y)
+Base.:*(x::AbstractOperator, y::Circuit) = Circuit(x, parent(y)...)
+Base.:*(x::Circuit, y::Circuit) = Circuit(parent(x)..., parent(y)...)
 
 Base.parent(circuit::Circuit) = circuit.ops
 Base.length(circuit::Circuit) = length(parent(circuit))
@@ -21,7 +18,6 @@ Base.iterate(circuit::Circuit, args...) = iterate(parent(circuit), args...)
 Base.firstindex(circuit::Circuit) = firstindex(parent(circuit))
 Base.lastindex(circuit::Circuit) = lastindex(parent(circuit))
 Base.getindex(circuit::Circuit, i) = getindex(parent(circuit), i)
-Base.setindex!(circuit::Circuit, i, val) = setindex!(parent(circuit), i, val)
 
 support(circuit::Circuit) = mapreduce(support, vcat, parent(circuit); init=Tuple{Vararg{Int}}[])
 
@@ -35,11 +31,10 @@ function Base.show(io::IO, circuit::Circuit)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", circuit::Circuit)
-    println(io, "Circuit([")
-    foreach(circuit) do op
-        println(io, "  ", op, ",")
-    end
-    print(io, "])")
+    print(io, "Circuit(")
+    !isempty(circuit) && println(io)
+    foreach(op -> println(io, "  ", op, ","), circuit)
+    print(io, ")")
     return nothing
 end
 
