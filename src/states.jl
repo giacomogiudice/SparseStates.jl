@@ -64,16 +64,16 @@ end
 function Base.haskey(state::SparseState, key)
     (; table, masks) = state
     key = parse_key(key, masks)
-    i = searchsortedfirst(table, key; by=first)
-    return i ≤ length(table) && first(table[i]) == key
+    n = searchsortedfirst(table, key; by=first)
+    return n ≤ length(table) && first(table[n]) == key
 end
 
 function Base.get(state::SparseState, key, default)
     (; table, masks) = state
     key = parse_key(key, masks)
-    i = searchsortedfirst(table, key; by=first)
-    if i ≤ length(table)
-        pair = table[i]
+    n = searchsortedfirst(table, key; by=first)
+    if n ≤ length(table)
+        pair = table[n]
         if first(pair) == key
             return last(pair)
         end
@@ -84,15 +84,15 @@ end
 function Base.get!(default::Callable, state::SparseState, key)
     (; table, masks) = state
     key = parse_key(key, masks)
-    i = searchsortedfirst(table, key; by=first)
-    if i ≤ length(table)
-        pair = table[i]
+    n = searchsortedfirst(table, key; by=first)
+    if n ≤ length(table)
+        pair = table[n]
         if first(pair) == key
             return last(pair)
         end
     end
     val = convert!(valtype(state), default())
-    insert!(table, i, val)
+    insert!(table, n, val)
     return val
 end
 
@@ -105,14 +105,14 @@ function Base.setindex!(state::SparseState, key, value)
     key = convert_to_keytype(state, key)
     value = convert(valtype(state), value)
     table = table(state)
-    i = searchsortedfirst(table, key; by=first)
-    if i ≤ length(table)
-        pair = table[i]
+    n = searchsortedfirst(table, key; by=first)
+    if n ≤ length(table)
+        pair = table[n]
         if first(pair) == key
-            table[i] = key => value
+            table[n] = key => value
         end
     end
-    insert!(table, i, key => value)
+    insert!(table, n, key => value)
     return value
 end
 
@@ -130,9 +130,7 @@ function Base.show(io::IO, ::MIME"text/plain", state::SparseState{K,V}) where {K
         else
             print(io, " +(", round(value; sigdigits=6), ")|", join(basis), "⟩")
         end
-        if qubits > 4 || length(state) > 4
-            print('\n')
-        end
+        (qubits > 4 || length(state) > 4) && println(io)
     end
     return nothing
 end
@@ -144,31 +142,31 @@ default_droptol(::Type{T}) where {T<:Number} = eps(T)^(2//3)
 function sorted_merge!(t₁::AbstractVector{Pair{K,V₁}}, t₂::AbstractVector{Pair{K,V₂}}; droptol) where {K,V₁,V₂}
     # Merges two tables assuming they are sorted
     V = promote_type(V₁, V₂)
-    i₁ = firstindex(t₁)
+    n₁ = firstindex(t₁)
     @label beginning
     @inbounds if !isempty(t₂)
-        i₂ = firstindex(t₂)
-        k₂, v₂ = t₂[i₂]
-        while i₁ ≤ lastindex(t₁)
-            k₁, v₁ = t₁[i₁]
+        n₂ = firstindex(t₂)
+        k₂, v₂ = t₂[n₂]
+        while n₁ ≤ lastindex(t₁)
+            k₁, v₁ = t₁[n₁]
             if k₁ > k₂
-                insert!(t₁, i₁, k₂ => v₂)
-                popat!(t₂, i₂)
+                insert!(t₁, n₁, k₂ => v₂)
+                popat!(t₂, n₂)
                 @goto beginning
             elseif k₁ == k₂
                 v = v₁ + v₂
                 if isapprox(v, zero(V); atol=droptol)
                     # drop both entries
-                    popat!(t₁, i₁)
-                    popat!(t₂, i₂)
+                    popat!(t₁, n₁)
+                    popat!(t₂, n₂)
                 else
-                    t₁[i₁] = k₁ => v
-                    popat!(t₂, i₂)
-                    i₁ += 1
+                    t₁[n₁] = k₁ => v
+                    popat!(t₂, n₂)
+                    n₁ += 1
                 end
                 @goto beginning
             end
-            i₁ += 1
+            n₁ += 1
         end
         # Traversed all of `t₁`, just append
         append!(t₁, t₂)
@@ -188,28 +186,28 @@ end
 function Base.isapprox(first_state::SparseState{K,V₁}, second_state::SparseState{K,V₂}; kwargs...) where {K,V₁,V₂}
     @boundscheck num_qubits(first_state) == num_qubits(second_state) ||
         throw(ArgumentError("States do not have the same number of qubits"))
-    # Compare element-wise
+    # Compare element-wise, assuming sorted tables
     t₁, t₂ = table(first_state), table(second_state)
-    i₁, i₂ = firstindex(t₁), firstindex(t₂)
+    n₁, n₂ = firstindex(t₁), firstindex(t₂)
     @label beginning
-    @inbounds while i₁ ≤ lastindex(t₁)
-        k₁, v₁ = t₁[i₁]
-        while i₂ ≤ lastindex(t₂)
-            k₂, v₂ = t₂[i₂]
+    @inbounds while n₁ ≤ lastindex(t₁)
+        k₁, v₁ = t₁[n₁]
+        while n₂ ≤ lastindex(t₂)
+            k₂, v₂ = t₂[n₂]
             if k₂ < k₁
                 isapprox(v₂, zero(V₂); kwargs...) || return false
-                i₂ += 1
+                n₂ += 1
             elseif k₁ == k₂
                 isapprox(v₁, v₂; kwargs...) || return false
-                i₁ += 1
-                i₂ += 1
+                n₁ += 1
+                n₂ += 1
                 @goto beginning
             else
                 break
             end
         end
         isapprox(v₁, zero(V₁); kwargs...) || return false
-        i₁ += 1
+        n₁ += 1
     end
     return true
 end
@@ -218,9 +216,9 @@ LinearAlgebra.lmul!(α::Number, state::SparseState) = rmul!(state, α)
 
 function LinearAlgebra.rmul!(state::SparseState, α::Number)
     (; table) = state
-    @inbounds for i in eachindex(table)
-        s, v = table[i]
-        table[i] = s => α * v
+    @inbounds for n in eachindex(table)
+        s, v = table[n]
+        table[n] = s => α * v
     end
     return state
 end
@@ -251,14 +249,14 @@ function LinearAlgebra.dot(first_state::SparseState{K}, second_state::SparseStat
     # Add common elements, using the fact that the tables are sorted
     s = zero(promote_type(valtype(first_state), valtype(second_state)))
     t₁, t₂ = table(first_state), table(second_state)
-    i₂ = firstindex(t₂)
-    @inbounds for i₁ in eachindex(t₁)
-        k₁, v₁ = t₁[i₁]
-        k₂, v₂ = t₂[i₂]
-        while i₂ ≤ lastindex(t₂)
-            k₂, v₂ = t₂[i₂]
+    n₂ = firstindex(t₂)
+    @inbounds for n₁ in eachindex(t₁)
+        k₁, v₁ = t₁[n₁]
+        k₂, v₂ = t₂[n₂]
+        while n₂ ≤ lastindex(t₂)
+            k₂, v₂ = t₂[n₂]
             if k₂ < k₁
-                i₂ += 1
+                n₂ += 1
             else
                 break
             end
