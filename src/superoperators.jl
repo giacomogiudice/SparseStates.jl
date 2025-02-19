@@ -16,15 +16,15 @@ function apply!(channel::Measure, state::SparseState{K,V}) where {K,V}
         p = expectation(state, i)
         outcome = rand() < p
         m = state.masks[i]
-        n = outcome ? √p : √(1 - p)
-        i = firstindex(table)
-        while i <= lastindex(table)
-            s, v = table[i]
+        c = outcome ? 1 / √p : 1 / √(1 - p)
+        n = firstindex(table)
+        while n <= lastindex(table)
+            s, v = table[n]
             if outcome ? (s & m == m) : iszero(s & m)
-                table[i] = s => v / n
-                i += 1
+                table[n] = s => c * v
+                n += 1
             else
-                popat!(table, i)
+                popat!(table, n)
             end
         end
         push!(outcomes, outcome)
@@ -41,15 +41,15 @@ function apply!(channel::Reset, state::SparseState{K,V}) where {K,V}
         p = expectation(state, i)
         outcome = rand() < p
         m = state.masks[i]
-        n = outcome ? √p : √(1 - p)
-        i = firstindex(table)
-        while i <= lastindex(table)
-            s, v = table[i]
+        c = outcome ? 1 / √p : 1 / √(1 - p)
+        n = firstindex(table)
+        while n <= lastindex(table)
+            s, v = table[n]
             if outcome ? (s & m == m) : iszero(s & m)
-                table[i] = s & ~m => v / n
-                i += 1
+                table[n] = s & ~m => c * v
+                n += 1
             else
-                popat!(table, i)
+                popat!(table, n)
             end
         end
         push!(outcomes, outcome)
@@ -97,14 +97,14 @@ function apply!(channel::MeasureOperator, state::SparseState)
         # Probability of having outcome `false` (+1 eigenstate) is `(1 + real(⟨U⟩) / 2`
         p = (1 - real(dot(state, new_state))) / 2
         outcome = rand() < p
-        n = outcome ? √p : √(1 - p)
+        c = outcome ? 1 / √p : 1 / √(1 - p)
         # Output state is `(state ± new_state) / 2`
         if outcome
             rmul!(new_state, -1)
         end
         # Merge states to perform addition
         sorted_merge!(state, new_state)
-        rmul!(state, 1 / 2n)
+        rmul!(state, c / 2)
         push!(outcomes, outcome)
     end
     callback(outcomes, state)
