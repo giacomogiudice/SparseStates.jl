@@ -221,6 +221,9 @@ end
     @test circuit isa Circuit
     @test circuit * CCX(1, 2, 3) isa Circuit
     @test CCX(1, 2, 3) * circuit isa Circuit
+    @test length(circuit) == 2
+    @test (@inferred circuit[1] == H(1)) && (@inferred circuit[2] == CX(1, 2))
+    @test support(circuit) == vcat(map(support, circuit)...) == [(1,), (1, 2)]
 end
 
 @testset "Utilities" begin

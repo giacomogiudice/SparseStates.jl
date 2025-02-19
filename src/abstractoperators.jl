@@ -87,6 +87,9 @@ function generic_operator(parent, identifier, N, fields...)
         $(esc(name))(iterable; kwargs...) = $(esc(name))(vec(collect(iterable)); kwargs...)
 
         SparseStates.support(op::$(esc(name))) = op.support
+        function Base.:(==)(x::$(esc(name)), y::$(esc(name)))
+            return x.support == y.support && all(getfield(x, key) == getfield(y, key) for key in $(esc(keys)))
+        end
     end
 end
 
