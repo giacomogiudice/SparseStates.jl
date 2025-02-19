@@ -219,11 +219,21 @@ end
 @testset "Circuits" begin
     circuit = H(1) * CX(1, 2)
     @test circuit isa Circuit
-    @test circuit * CCX(1, 2, 3) isa Circuit
-    @test CCX(1, 2, 3) * circuit isa Circuit
-    @test length(circuit) == 2
-    @test (@inferred circuit[1] == H(1)) && (@inferred circuit[2] == CX(1, 2))
+    @test (@inferred circuit * CCX(1, 2, 3)) isa Circuit && (@inferred CCX(1, 2, 3) * circuit) isa Circuit
+    @test (@inferred circuit * circuit) isa Circuit
+
+    @test (@inferred length(Circuit())) == 0
+    @test (@inferred length(Circuit(H(1)))) == 1
+    @test (@inferred length(H(1) * CX(1, 2))) == 2
+    @test (@inferred circuit[begin] == H(1)) && (@inferred circuit[end] == CX(1, 2))
     @test support(circuit) == vcat(map(support, circuit)...) == [(1,), (1, 2)]
+
+    # Make sure printing returns something
+    buf = IOBuffer()
+    show(buf, circuit)
+    @test !isempty(String(take!(buf)))
+    show(buf, "text/plain", circuit)
+    @test !isempty(String(take!(buf)))
 end
 
 @testset "Utilities" begin
