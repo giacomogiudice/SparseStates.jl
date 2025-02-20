@@ -54,8 +54,8 @@ Base.sizehint!(state::SparseState, n::Integer) = sizehint!(table(state), n)
 Base.iterate(state::SparseState, args...) = iterate(table(state), args...)
 Base.pairs(state::SparseState) = (pair for pair in table(state))
 
-function Base.sort!(state::SparseState)
-    sort!(table(state); by=first)
+function Base.sort!(state::SparseState; kwargs...)
+    sort!(table(state); by=first, kwargs...)
     return state
 end
 
