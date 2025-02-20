@@ -9,8 +9,7 @@ default_callback(outcomes, state::SparseState) = nothing
 function apply!(channel::Measure, state::SparseState{K,V}) where {K,V}
     (; callback) = channel
     (; table, masks) = state
-    outcomes = sizehint!(Bool[], length(support(channel)))
-    @inbounds for (i,) in support(channel)
+    @inbounds outcomes = map(support(channel)) do (i,)
         p = expectation(state, i)
         outcome = rand() < p
         m = state.masks[i]
@@ -18,14 +17,14 @@ function apply!(channel::Measure, state::SparseState{K,V}) where {K,V}
         n = firstindex(table)
         while n <= lastindex(table)
             s, v = table[n]
-            if outcome ? (s & m == m) : iszero(s & m)
+            if iszero(s & m) ⊻ outcome
                 table[n] = s => c * v
                 n += 1
             else
                 popat!(table, n)
             end
         end
-        push!(outcomes, outcome)
+        return outcome
     end
     callback(outcomes, state)
     return state
@@ -34,8 +33,7 @@ end
 function apply!(channel::Reset, state::SparseState{K,V}) where {K,V}
     (; callback) = channel
     (; table, masks) = state
-    outcomes = sizehint!(Bool[], length(support(channel)))
-    @inbounds for (i,) in support(channel)
+    @inbounds outcomes = map(support(channel)) do (i,)
         p = expectation(state, i)
         outcome = rand() < p
         m = state.masks[i]
@@ -43,14 +41,14 @@ function apply!(channel::Reset, state::SparseState{K,V}) where {K,V}
         n = firstindex(table)
         while n <= lastindex(table)
             s, v = table[n]
-            if outcome ? (s & m == m) : iszero(s & m)
+            if iszero(s & m) ⊻ outcome
                 table[n] = s & ~m => c * v
                 n += 1
             else
                 popat!(table, n)
             end
         end
-        push!(outcomes, outcome)
+        return outcome
     end
     callback(outcomes, state)
     return state
@@ -89,21 +87,17 @@ end
 function apply!(channel::MeasureOperator, state::SparseState)
     (; ops, callback) = channel
     sort!(state)
-    outcomes = sizehint!(Bool[], length(ops))
-    for op in ops
+    @inbounds outcomes = map(ops) do op
         new_state = apply(op, state)
         # Probability of having outcome `false` (+1 eigenstate) is `(1 + real(⟨U⟩) / 2`
         p = (1 - real(dot(state, new_state))) / 2
         outcome = rand() < p
         c = outcome ? 1 / √p : 1 / √(1 - p)
-        # Output state is `(state ± new_state) / 2`
-        if outcome
-            rmul!(new_state, -1)
-        end
-        # Merge states to perform addition
+        # Output state is `(state ± new_state) / 2`, merge states to perform addition
+        outcome && rmul!(new_state, -1)
         sorted_merge!(state, new_state)
         rmul!(state, c / 2)
-        push!(outcomes, outcome)
+        return outcome
     end
     callback(outcomes, state)
     return state
@@ -140,15 +134,14 @@ support(channel::DepolarizingChannel) = channel.support
 
 function apply!(channel::DepolarizingChannel{N}, state::SparseState) where {N}
     (; p, callback) = channel
-    outcomes = sizehint!(Bool[], length(support(channel)))
-    for inds in support(channel)
+    @inbounds outcomes = map(support(channel)) do inds
         outcome = rand() < p
         if outcome
             ops = rand(@view PAULI_COMBINATIONS[N][(begin + 1):end])
             circuit = mapreduce((O, i) -> O(i), *, ops, inds)
             apply!(circuit, state)
         end
-        push!(outcomes, outcome)
+        return outcome
     end
     callback(outcomes, state)
     return state
