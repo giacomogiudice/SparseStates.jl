@@ -1,5 +1,3 @@
-using Base: Callable
-
 const DEFAULT_KEYTYPE = UInt64
 const DEFAULT_ELTYPE = Complex{Float64}
 
@@ -81,7 +79,7 @@ function Base.get(state::SparseState, key, default)
     return default
 end
 
-function Base.get!(default::Callable, state::SparseState, key)
+function Base.get!(default::Function, state::SparseState, key)
     (; table, masks) = state
     key = parse_key(key, masks)
     n = searchsortedfirst(table, key; by=first)

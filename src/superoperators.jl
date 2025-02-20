@@ -1,12 +1,10 @@
-using Base: Callable
-
 # Cache all combinations up to support of length 3
 const PAULI_COMBINATIONS = ntuple(l -> collect(pauli_combinations(l)), 3)
 
 default_callback(outcomes, state::SparseState) = nothing
 
-@super_operator Reset{C<:Callable} 1 callback::C = default_callback
-@super_operator Measure{C<:Callable} 1 callback::C = default_callback
+@super_operator Reset{F<:Function} 1 callback::F = default_callback
+@super_operator Measure{F<:Function} 1 callback::F = default_callback
 
 function apply!(channel::Measure, state::SparseState{K,V}) where {K,V}
     (; callback) = channel
@@ -58,12 +56,12 @@ function apply!(channel::Reset, state::SparseState{K,V}) where {K,V}
     return state
 end
 
-struct MeasureOperator{O<:AbstractOperator,C<:Callable} <: SuperOperator
+struct MeasureOperator{O<:AbstractOperator,F<:Function} <: SuperOperator
     ops::Vector{O}
-    callback::C
+    callback::F
 end
 
-function MeasureOperator(ops::AbstractArray{O}; callback::C=default_callback) where {O<:AbstractOperator,C<:Callable}
+function MeasureOperator(ops::AbstractArray{O}; callback::F=default_callback) where {O<:AbstractOperator,F<:Function}
     return MeasureOperator(vec(collect(ops)), callback)
 end
 
@@ -111,15 +109,15 @@ function apply!(channel::MeasureOperator, state::SparseState)
     return state
 end
 
-struct DepolarizingChannel{N,C<:Callable} <: SuperOperator
+struct DepolarizingChannel{N,F<:Function} <: SuperOperator
     support::Vector{NTuple{N,Int}}
     p::Float64
-    callback::C
+    callback::F
 
     function DepolarizingChannel{N}(
-        support::AbstractVector{NTuple{N,Int}}; p::Number=0, callback::C=default_callback
-    ) where {N,C<:Callable}
-        return new{N,C}(support, p, callback)
+        support::AbstractVector{NTuple{N,Int}}; p::Number=0, callback::F=default_callback
+    ) where {N,F<:Function}
+        return new{N,F}(support, p, callback)
     end
 end
 
