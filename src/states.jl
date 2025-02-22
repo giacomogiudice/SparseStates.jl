@@ -138,7 +138,7 @@ default_droptol(::Type{T}) where {T<:Union{Integer,Rational}} = zero(T)
 default_droptol(::Type{T}) where {T<:Number} = eps(T)^(2//3)
 
 function sorted_merge!(t₁::AbstractVector{Pair{K,V₁}}, t₂::AbstractVector{Pair{K,V₂}}; droptol) where {K,V₁,V₂}
-    # Merges two tables assuming they are sorted
+    # Merges two tables in linear time, assuming they are sorted
     V = promote_type(V₁, V₂)
     n₁ = firstindex(t₁)
     @label beginning
@@ -241,7 +241,7 @@ LinearAlgebra.norm(state::SparseState, args...) = norm(values(state), args...)
 
 LinearAlgebra.normalize!(state::SparseState, args...) = rmul!(state, 1 / norm(state, args...))
 
-function LinearAlgebra.dot(first_state::SparseState{K}, second_state::SparseState{K}) where {K}
+function LinearAlgebra.dot(first_state::SparseState, second_state::SparseState)
     @boundscheck num_qubits(first_state) == num_qubits(second_state) ||
         throw(ArgumentError("States do not have the same number of qubits"))
     # Add common elements, using the fact that the tables are sorted
