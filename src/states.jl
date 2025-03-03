@@ -13,7 +13,7 @@ function parse_key(key::AbstractString, masks::AbstractVector{K}) where {K}
         elseif c == '1'
             return m
         else
-            throw(ArgumentError("key $(key) is expected to only have 0s and 1s"))
+            throw(ArgumentError("key $(key) is expected to only have 0s or 1s"))
         end
     end
 end
@@ -52,7 +52,7 @@ Base.empty(state::SparseState, K, V) = SparseState{K,V}([], state.masks)
 Base.copy(state::SparseState) = SparseState(copy(state.table), copy(state.masks))
 Base.sizehint!(state::SparseState, n::Integer) = sizehint!(table(state), n)
 Base.iterate(state::SparseState, args...) = iterate(table(state), args...)
-Base.pairs(state::SparseState) = (pair for pair in table(state))
+Base.pairs(state::SparseState) = table(state)
 
 function Base.sort!(state::SparseState; kwargs...)
     sort!(table(state); by=first, kwargs...)
@@ -148,8 +148,7 @@ function sorted_merge!(t₁::AbstractVector{Pair{K,V₁}}, t₂::AbstractVector{
         while n₁ ≤ lastindex(t₁)
             k₁, v₁ = t₁[n₁]
             if k₁ > k₂
-                insert!(t₁, n₁, k₂ => v₂)
-                popat!(t₂, n₂)
+                insert!(t₁, n₁, popat!(t₂, n₂))
                 @goto beginning
             elseif k₁ == k₂
                 v = v₁ + v₂
@@ -229,17 +228,16 @@ Base.:*(state::SparseState, α::Number) = rmul!(copy(state), α)
 Base.:/(state::SparseState, α::Number) = state * inv(α)
 
 function LinearAlgebra.kron(first_state::SparseState{K,V₁}, second_state::SparseState{K,V₂}) where {K,V₁,V₂}
-    new_table = [
-        s₁ | (s₂ << num_qubits(first_state)) => v₁ * v₂ for (s₁, v₁) in first_state for (s₂, v₂) in second_state
-    ]
-    return SparseState(sort!(new_table; by=first), num_qubits(first_state) + num_qubits(second_state))
+    n₁, n₂ = num_qubits(first_state), num_qubits(second_state)
+    new_table = [s₁ | (s₂ << n₁) => v₁ * v₂ for (s₁, v₁) in first_state for (s₂, v₂) in second_state]
+    return SparseState(sort!(new_table; by=first), n₁ + n₂)
 end
 
 LinearAlgebra.kron(states::SparseState...) = foldl(kron, states)
 
-LinearAlgebra.norm(state::SparseState, args...) = norm(values(state), args...)
+LinearAlgebra.norm(state::SparseState) = √sum(abs2, values(state))
 
-LinearAlgebra.normalize!(state::SparseState, args...) = rmul!(state, 1 / norm(state, args...))
+LinearAlgebra.normalize!(state::SparseState) = rmul!(state, 1 / norm(state))
 
 function LinearAlgebra.dot(first_state::SparseState, second_state::SparseState)
     @boundscheck num_qubits(first_state) == num_qubits(second_state) ||
@@ -266,9 +264,15 @@ function LinearAlgebra.dot(first_state::SparseState, second_state::SparseState)
     return s
 end
 
-function expectation(state::SparseState, i::Int)
+function expectation(state::SparseState{K,V}, i::Int) where {K,V}
     m = state.masks[i]
-    return sum(!iszero(s & m) * abs2(v) for (s, v) in state; init=zero(real(valtype(state))))
+    upper, lower = zero(real(V)), zero(real(V))
+    @inbounds for (s, v) in pairs(state)
+        a = abs2(v)
+        upper += !iszero(s & m) * a
+        lower += a
+    end
+    return upper / √lower
 end
 
 expectation(state::SparseState, indices) = map(i -> expectation(state, i), indices)

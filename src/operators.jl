@@ -29,6 +29,7 @@ CCNOT = CCX
 parity(i::Integer) = isodd(count_ones(i))
 
 conditional_minus(b::Bool) = (1 - 2 * b)
+
 conditional_conj(x::Complex{T}, b::Bool) where {T} = Complex{T}(real(x), conditional_minus(b) * imag(x))
 conditional_conj(x::Number, b::Bool) = x
 

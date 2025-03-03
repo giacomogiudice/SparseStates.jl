@@ -90,7 +90,7 @@ function apply!(channel::MeasureOperator, state::SparseState)
     @inbounds outcomes = map(ops) do op
         new_state = apply(op, state)
         # Probability of having outcome `false` (+1 eigenstate) is `(1 + real(⟨U⟩) / 2`
-        p = (1 - real(dot(state, new_state))) / 2
+        p = (1 - real(dot(state, new_state)) / (norm(state) * norm(new_state))) / 2
         outcome = rand() < p
         c = outcome ? 1 / √p : 1 / √(1 - p)
         # Output state is `(state ± new_state) / 2`, merge states to perform addition
