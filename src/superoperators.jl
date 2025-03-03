@@ -71,17 +71,7 @@ support(channel::MeasureOperator) = mapreduce(support, vcat, parent(channel); in
 
 function Base.show(io::IO, channel::MeasureOperator)
     (; ops, callback) = channel
-
-    print(io, "MeasureOperator", "(")
-    if length(ops) == 1
-        print(io, only(ops))
-    else
-        print(io, "[", join(ops, ", "), "]")
-    end
-    print(io, "; ", "callback=$(callback)")
-    print(io, ")")
-
-    return nothing
+    return show_operator(io, :MeasureOperator, ops; callback)
 end
 
 function apply!(channel::MeasureOperator, state::SparseState)
