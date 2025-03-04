@@ -8,26 +8,31 @@ abstract type SuperOperator <: AbstractOperator end
 
 apply(op::AbstractOperator, state::SparseState; kwargs...) = sort!(apply!(op, copy(state); kwargs...))
 
-function Base.show(io::IO, op::O) where {O<:AbstractOperator}
-    indices = support(op)
-    parameters = [name => getfield(op, name) for name in fieldnames(O) if name ≠ :support]
-
-    print(io, nameof(O), "(")
-    if length(indices) == 1
-        print(io, join(only(indices), ", "))
-    else
-        if eltype(indices) == Tuple{Int}
-            print(io, "[", join((only(i) for i in indices), ", "), "]")
+function show_operator(io::IO, name::Union{Symbol,AbstractString}, args::AbstractArray=[]; kwargs...)
+    print(io, name, "(")
+    if length(args) == 1
+        if eltype(args) <: NTuple{N,Int} where {N}
+            print(io, join(only(args), ", "))
         else
-            print(io, "[", join(indices, ", "), "]")
+            print(io, only(args))
+        end
+    else
+        if eltype(args) <: Tuple{Int}
+            print(io, "[", join((only(i) for i in args), ", "), "]")
+        else
+            print(io, "[", join(args, ", "), "]")
         end
     end
-    if !isempty(parameters)
-        print(io, "; ", join(("$(name)=$(value)" for (name, value) in parameters), ", "))
+    if !isempty(kwargs)
+        print(io, "; ", join(("$(name)=$(value)" for (name, value) in kwargs), ", "))
     end
     print(io, ")")
-
     return nothing
+end
+
+function Base.show(io::IO, op::O) where {O<:AbstractOperator}
+    parameters = (; (name => getfield(op, name) for name in fieldnames(O) if name ≠ :support)...)
+    return show_operator(io, nameof(O), support(op); parameters...)
 end
 
 # Overload three-argument dot product

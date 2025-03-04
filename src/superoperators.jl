@@ -1,33 +1,30 @@
-using Base: Callable
-
 # Cache all combinations up to support of length 3
 const PAULI_COMBINATIONS = ntuple(l -> collect(pauli_combinations(l)), 3)
 
 default_callback(outcomes, state::SparseState) = nothing
 
-@super_operator Reset{C<:Callable} 1 callback::C = default_callback
-@super_operator Measure{C<:Callable} 1 callback::C = default_callback
+@super_operator Reset{F<:Function} 1 callback::F = default_callback
+@super_operator Measure{F<:Function} 1 callback::F = default_callback
 
 function apply!(channel::Measure, state::SparseState{K,V}) where {K,V}
     (; callback) = channel
     (; table, masks) = state
-    outcomes = sizehint!(Bool[], length(support(channel)))
-    @inbounds for (i,) in support(channel)
+    @inbounds outcomes = map(support(channel)) do (i,)
         p = expectation(state, i)
         outcome = rand() < p
         m = state.masks[i]
-        n = outcome ? √p : √(1 - p)
-        i = firstindex(table)
-        while i <= lastindex(table)
-            s, v = table[i]
-            if outcome ? (s & m == m) : iszero(s & m)
-                table[i] = s => v / n
-                i += 1
+        c = outcome ? 1 / √p : 1 / √(1 - p)
+        n = firstindex(table)
+        while n <= lastindex(table)
+            s, v = table[n]
+            if iszero(s & m) ⊻ outcome
+                table[n] = s => c * v
+                n += 1
             else
-                popat!(table, i)
+                popat!(table, n)
             end
         end
-        push!(outcomes, outcome)
+        return outcome
     end
     callback(outcomes, state)
     return state
@@ -36,34 +33,33 @@ end
 function apply!(channel::Reset, state::SparseState{K,V}) where {K,V}
     (; callback) = channel
     (; table, masks) = state
-    outcomes = sizehint!(Bool[], length(support(channel)))
-    @inbounds for (i,) in support(channel)
+    @inbounds outcomes = map(support(channel)) do (i,)
         p = expectation(state, i)
         outcome = rand() < p
         m = state.masks[i]
-        n = outcome ? √p : √(1 - p)
-        i = firstindex(table)
-        while i <= lastindex(table)
-            s, v = table[i]
-            if outcome ? (s & m == m) : iszero(s & m)
-                table[i] = s & ~m => v / n
-                i += 1
+        c = outcome ? 1 / √p : 1 / √(1 - p)
+        n = firstindex(table)
+        while n <= lastindex(table)
+            s, v = table[n]
+            if iszero(s & m) ⊻ outcome
+                table[n] = s & ~m => c * v
+                n += 1
             else
-                popat!(table, i)
+                popat!(table, n)
             end
         end
-        push!(outcomes, outcome)
+        return outcome
     end
     callback(outcomes, state)
     return state
 end
 
-struct MeasureOperator{O<:AbstractOperator,C<:Callable} <: SuperOperator
+struct MeasureOperator{O<:AbstractOperator,F<:Function} <: SuperOperator
     ops::Vector{O}
-    callback::C
+    callback::F
 end
 
-function MeasureOperator(ops::AbstractArray{O}; callback::C=default_callback) where {O<:AbstractOperator,C<:Callable}
+function MeasureOperator(ops::AbstractArray{O}; callback::F=default_callback) where {O<:AbstractOperator,F<:Function}
     return MeasureOperator(vec(collect(ops)), callback)
 end
 
@@ -75,51 +71,37 @@ support(channel::MeasureOperator) = mapreduce(support, vcat, parent(channel); in
 
 function Base.show(io::IO, channel::MeasureOperator)
     (; ops, callback) = channel
-
-    print(io, "MeasureOperator", "(")
-    if length(ops) == 1
-        print(io, only(ops))
-    else
-        print(io, "[", join(ops, ", "), "]")
-    end
-    print(io, "; ", "callback=$(callback)")
-    print(io, ")")
-
-    return nothing
+    return show_operator(io, :MeasureOperator, ops; callback)
 end
 
 function apply!(channel::MeasureOperator, state::SparseState)
     (; ops, callback) = channel
     sort!(state)
-    outcomes = sizehint!(Bool[], length(ops))
-    for op in ops
+    @inbounds outcomes = map(ops) do op
         new_state = apply(op, state)
         # Probability of having outcome `false` (+1 eigenstate) is `(1 + real(⟨U⟩) / 2`
-        p = (1 - real(dot(state, new_state))) / 2
+        p = (1 - real(dot(state, new_state)) / (norm(state) * norm(new_state))) / 2
         outcome = rand() < p
-        n = outcome ? √p : √(1 - p)
-        # Output state is `(state ± new_state) / 2`
-        if outcome
-            rmul!(new_state, -1)
-        end
-        # Merge states to perform addition
+        c = outcome ? 1 / √p : 1 / √(1 - p)
+        # Output state is `(state ± new_state) / 2`, merge states to perform addition
+        outcome && rmul!(new_state, -1)
         sorted_merge!(state, new_state)
-        rmul!(state, 1 / 2n)
-        push!(outcomes, outcome)
+        rmul!(state, c / 2)
+        return outcome
     end
     callback(outcomes, state)
     return state
 end
 
-struct DepolarizingChannel{N,C<:Callable} <: SuperOperator
+struct DepolarizingChannel{N,F<:Function} <: SuperOperator
     support::Vector{NTuple{N,Int}}
     p::Float64
-    callback::C
+    callback::F
 
     function DepolarizingChannel{N}(
-        support::AbstractVector{NTuple{N,Int}}; p::Number=0, callback::C=default_callback
-    ) where {N,C<:Callable}
-        return new{N,C}(support, p, callback)
+        support::AbstractVector{NTuple{N,Int}}; p::Number=0, callback::F=default_callback
+    ) where {N,F<:Function}
+        return new{N,F}(support, p, callback)
     end
 end
 
@@ -142,15 +124,14 @@ support(channel::DepolarizingChannel) = channel.support
 
 function apply!(channel::DepolarizingChannel{N}, state::SparseState) where {N}
     (; p, callback) = channel
-    outcomes = sizehint!(Bool[], length(support(channel)))
-    for inds in support(channel)
+    @inbounds outcomes = map(support(channel)) do inds
         outcome = rand() < p
         if outcome
             ops = rand(@view PAULI_COMBINATIONS[N][(begin + 1):end])
             circuit = mapreduce((O, i) -> O(i), *, ops, inds)
             apply!(circuit, state)
         end
-        push!(outcomes, outcome)
+        return outcome
     end
     callback(outcomes, state)
     return state
