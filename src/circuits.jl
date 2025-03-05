@@ -18,6 +18,7 @@ Base.iterate(circuit::Circuit, args...) = iterate(parent(circuit), args...)
 Base.firstindex(circuit::Circuit) = firstindex(parent(circuit))
 Base.lastindex(circuit::Circuit) = lastindex(parent(circuit))
 Base.getindex(circuit::Circuit, i) = getindex(parent(circuit), i)
+Base.:(==)(x::Circuit, y::Circuit) = parent(x) == parent(y)
 
 support(circuit::Circuit) = mapreduce(support, vcat, parent(circuit); init=Tuple{Vararg{Int}}[])
 
@@ -44,6 +45,8 @@ function apply!(circuit::Circuit, state::SparseState; kwargs...)
     end
     return state
 end
+
+Base.adjoint(circuit::Circuit) = Circuit(map(adjoint, reverse(parent(circuit))))
 
 pauli_combinations(qubits::Int=1) = Iterators.product(ntuple(_ -> (I, X, Y, Z), qubits)...)
 
