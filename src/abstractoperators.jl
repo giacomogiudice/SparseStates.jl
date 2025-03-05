@@ -65,7 +65,6 @@ LinearAlgebra.adjoint(::Type{O}) where {O<:Operator} = AdjointOperatorType{O}()
 
 Base.show(io::IO, type::AdjointOperatorType{O}) where {O} = print(io, O, "'")
 
-
 # Define `@operator` and `@super_operator` macros
 function parse_field(expr::Union{Symbol,Expr})
     if expr isa Symbol
