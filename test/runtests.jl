@@ -65,26 +65,32 @@ end
         # `X` gate
         state_final = @inferred apply(X(n), state_initial)
         @test state_final ≈ β * basis["0"] + α * basis["1"]
+        @test (@inferred apply(X'(n), state_final)) ≈ state_initial
 
         # `Y` gate
         state_final = @inferred apply(Y(n), state_initial)
         @test state_final ≈ -im * β * basis["0"] + im * α * basis["1"]
+        @test (@inferred apply(Y'(n), state_final)) ≈ state_initial
 
         # `Z` gate
         state_final = @inferred apply(Z(n), state_initial)
         @test state_final ≈ α * basis["0"] - β * basis["1"]
+        @test (@inferred apply(Z'(n), state_final)) ≈ state_initial
 
         # `H` gate
         state_final = @inferred apply(H(n), state_initial)
         @test state_final ≈ (α + β) / √2 * basis["0"] + (α - β) / √2 * basis["1"]
+        @test (@inferred apply(H'(n), state_final)) ≈ state_initial
 
         # `S` gate
         state_final = @inferred apply(S(n), state_initial)
         @test state_final ≈ α * basis["0"] + im * β * basis["1"]
+        @test (@inferred apply(S'(n), state_final)) ≈ state_initial
 
         # `T` gate
         state_final = @inferred apply(T(n), state_initial)
         @test state_final ≈ α * basis["0"] + √im * β * basis["1"]
+        @test (@inferred apply(T'(n), state_final)) ≈ state_initial
 
         # `U` gate
         θ, ϕ, λ = 4π * rand(real(V), 3)
@@ -92,23 +98,29 @@ end
         @test state_final ≈
             (α * exp(-(im / 2) * (ϕ + λ)) * cos(θ / 2) - β * exp(-(im / 2) * (ϕ - λ)) * sin(θ / 2)) * basis["0"] +
               (α * exp(+(im / 2) * (ϕ - λ)) * sin(θ / 2) + β * exp(+(im / 2) * (ϕ + λ)) * cos(θ / 2)) * basis["1"]
+        @test (@inferred apply(U'(n; θ, ϕ, λ), state_final)) ≈ state_initial
 
         # `RX` gate
         θ = 4π * rand(real(V))
         state_final = @inferred apply(RX(n; θ), state_initial)
         @test state_final ≈
             (α * cos(θ / 2) - im * β * sin(θ / 2)) * basis["0"] + (-im * α * sin(θ / 2) + β * cos(θ / 2)) * basis["1"]
+        @test (@inferred apply(RX'(n; θ), state_final)) ≈ state_initial
 
         # `RY` gate
         θ = 4π * rand(real(V))
         state_final = @inferred apply(RY(n; θ), state_initial)
         @test state_final ≈
             (α * cos(θ / 2) - β * sin(θ / 2)) * basis["0"] + (α * sin(θ / 2) + β * cos(θ / 2)) * basis["1"]
+        @test (@inferred apply(RY'(n; θ), state_final)) ≈ state_initial
+
 
         # `RZ` gate
         θ = 4π * rand(real(V))
         state_final = @inferred apply(RZ(n; θ), state_initial)
         @test state_final ≈ α * exp(-(im / 2) * θ) * basis["0"] + β * exp(+(im / 2) * θ) * basis["1"]
+        @test (@inferred apply(RZ'(n; θ), state_final)) ≈ state_initial
+
     end
 
     @testset "Two-qubit gates with SparseState{$K,$V}" for (K, V) in Iterators.product(KEY_TYPES, COMPLEX_VAL_TYPES)
@@ -133,20 +145,25 @@ end
         state_final = @inferred apply(CX(m, n), state_initial)
         state_test = c["00"] * basis["00"] + c["01"] * basis["01"] + c["11"] * basis["10"] + c["10"] * basis["11"]
         @test state_final ≈ state_test
+        @test (@inferred apply(CX'(m, n), state_final)) ≈ state_initial
+
 
         # `CY` gate
         state_final = @inferred apply(CY(m, n), state_initial)
         state_test =
             c["00"] * basis["00"] + c["01"] * basis["01"] - im * c["11"] * basis["10"] + im * c["10"] * basis["11"]
         @test state_final ≈ state_test
+        @test (@inferred apply(CY'(m, n), state_final)) ≈ state_initial
 
         # `CZ` gate
         state_final = @inferred apply(CZ(m, n), state_initial)
         state_test = c["00"] * basis["00"] + c["01"] * basis["01"] + c["10"] * basis["10"] - c["11"] * basis["11"]
+        @test (@inferred apply(CZ'(m, n), state_final)) ≈ state_initial
 
         # `SWAP` gate
         state_final = @inferred apply(SWAP(m, n), state_initial)
         state_test = c["00"] * basis["00"] + c["10"] * basis["01"] + c["01"] * basis["10"] + c["11"] * basis["11"]
+        @test (@inferred apply(SWAP'(m, n), state_final)) ≈ state_initial
     end
 
     @testset "Three-qubit gates with SparseState{$K,$V}" for (K, V) in Iterators.product(KEY_TYPES, COMPLEX_VAL_TYPES)
@@ -187,6 +204,7 @@ end
             c["111"] * basis["110"] +
             c["110"] * basis["111"]
         @test state_final ≈ state_test
+        @test (@inferred apply(CCX'(m, n, l), state_final)) ≈ state_initial
 
         # `CCY` gate
         state_final = @inferred apply(CCY(m, n, l), state_initial)
@@ -200,6 +218,7 @@ end
             -im * c["111"] * basis["110"] +
             +im * c["110"] * basis["111"]
         @test state_final ≈ state_test
+        @test (@inferred apply(CCY'(m, n, l), state_final)) ≈ state_initial
 
         # `CCZ` gate
         state_final = @inferred apply(CCZ(m, n, l), state_initial)
@@ -213,6 +232,7 @@ end
             c["110"] * basis["110"] +
             -c["111"] * basis["111"]
         @test state_final ≈ state_test
+        @test (@inferred apply(CCZ'(m, n, l), state_final)) ≈ state_initial
     end
 end
 
@@ -234,6 +254,10 @@ end
     @test !isempty(String(take!(buf)))
     show(buf, "text/plain", circuit)
     @test !isempty(String(take!(buf)))
+
+    # Adjoints
+    @test (@inferred adjoint(circuit)) isa Circuit
+    @test circuit' == CX(1, 2)' * H(1)'
 end
 
 @testset "Utilities" begin

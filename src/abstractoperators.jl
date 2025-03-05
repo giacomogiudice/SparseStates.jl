@@ -42,6 +42,30 @@ end
 
 function support end
 
+struct AdjointOperator{O<:Operator} <: Operator
+    parent::O
+end
+
+Base.parent(op::AdjointOperator) = op.parent
+Base.:(==)(x::AdjointOperator, y::AdjointOperator) = parent(x) == parent(y)
+
+LinearAlgebra.adjoint(op::Operator) = AdjointOperator(op)
+LinearAlgebra.adjoint(op::AdjointOperator) = parent(op)
+
+support(op::AdjointOperator) = support(parent(op))
+
+Base.show(io::IO, op::AdjointOperator) = print(io, parent(op), "'")
+
+# Helper type to allow for delayed construction
+struct AdjointOperatorType{O} end
+
+LinearAlgebra.adjoint(::Type{O}) where {O<:Operator} = AdjointOperatorType{O}()
+
+(::AdjointOperatorType{O})(args...; kwargs...) where {O} = adjoint(O(args...; kwargs...))
+
+Base.show(io::IO, type::AdjointOperatorType{O}) where {O} = print(io, O, "'")
+
+
 # Define `@operator` and `@super_operator` macros
 function parse_field(expr::Union{Symbol,Expr})
     if expr isa Symbol
