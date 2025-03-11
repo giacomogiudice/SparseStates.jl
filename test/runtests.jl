@@ -245,16 +245,22 @@ end
     @test (@inferred circuit[begin] == H(1)) && (@inferred circuit[end] == CX(1, 2))
     @test support(circuit) == vcat(map(support, circuit)...) == [(1,), (1, 2)]
 
+    # Adjoints
+    @test (@inferred adjoint(circuit)) isa Circuit
+    @test circuit' == CX(1, 2)' * H(1)'
+    @test circuit'' == circuit
+    @test_throws MethodError adjoint(X(1) * Measure(1))
+
     # Make sure printing returns something
     buf = IOBuffer()
     show(buf, circuit)
     @test !isempty(String(take!(buf)))
     show(buf, "text/plain", circuit)
     @test !isempty(String(take!(buf)))
-
-    # Adjoints
-    @test (@inferred adjoint(circuit)) isa Circuit
-    @test circuit' == CX(1, 2)' * H(1)'
+    show(buf, circuit')
+    @test !isempty(String(take!(buf)))
+    show(buf, "text/plain", circuit')
+    @test !isempty(String(take!(buf)))
 end
 
 @testset "Utilities" begin
