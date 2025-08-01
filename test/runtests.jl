@@ -25,10 +25,14 @@ const VAL_TYPES = (REAL_VAL_TYPES..., COMPLEX_VAL_TYPES...)
         @test (@inferred state["00"]) ≈ 1
         @test_throws ArgumentError state["000"]
         @test_throws ArgumentError state["02"]
+        @test_throws KeyError state["01"]
         get!(state, "01", 1 // 2)
         @test issorted(state) && state["01"] ≈ 0.5
+        get!(state, "01", 0)
+        @test issorted(state) && state["01"] ≈ 0.5
         state["01"] = 0
-        @test issorted(state) && state["01"] ≈ 0
+        state["11"] = 0
+        @test issorted(state) && state["01"] ≈ 0 && state["11"] ≈ 0
         @test (@inferred dot(state, state)) ≈ 1
         @test (@inferred norm(state)) ≈ 1
 
