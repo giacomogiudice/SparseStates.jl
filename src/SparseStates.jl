@@ -3,7 +3,7 @@ module SparseStates
 using LinearAlgebra
 
 export SparseState
-export num_qubits, setsorted!, expectation
+export num_qubits, expectation
 export AbstractOperator, Operator, SuperOperator, AdjointOperator
 export @operator, @super_operator
 export support, apply, apply!
