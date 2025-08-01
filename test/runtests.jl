@@ -17,6 +17,7 @@ const VAL_TYPES = (REAL_VAL_TYPES..., COMPLEX_VAL_TYPES...)
         @test state isa AbstractDict
         @test (@inferred keytype(state)) == K && (@inferred valtype(state)) == V
         @test (@inferred num_qubits(state)) == 2
+        @test (@inferred issorted(state))
         @test (@inferred length(state)) == 1
         @test (@inferred haskey(state, 0))
         @test (@inferred haskey(state, "00"))
@@ -24,9 +25,17 @@ const VAL_TYPES = (REAL_VAL_TYPES..., COMPLEX_VAL_TYPES...)
         @test (@inferred state["00"]) ≈ 1
         @test_throws ArgumentError state["000"]
         @test_throws ArgumentError state["02"]
-
-        @test dot(state, state) ≈ 1
-        @test norm(state) ≈ 1
+        @test_throws KeyError state["01"]
+        get!(state, "01", 1 // 2)
+        @test issorted(state) && state["01"] ≈ 0.5
+        get!(state, "01", 0)
+        @test issorted(state) && state["01"] ≈ 0.5
+        state["01"] = 0
+        state["11"] = 0
+        @test issorted(state) && state["01"] ≈ 0 && state["11"] ≈ 0
+        @test (@inferred dot(state, state)) ≈ 1
+        @test (@inferred norm(state)) ≈ 1
+        @test norm(empty(state)) ≈ 0
 
         state_first = SparseState{K,V}("01" => 1, 2)
         state_second = SparseState{K,V}("001" => 1, 3)
@@ -37,6 +46,7 @@ const VAL_TYPES = (REAL_VAL_TYPES..., COMPLEX_VAL_TYPES...)
         @test num_qubits(state_prod) == 2 + 3
         @test length(state_prod) == 1
         @test state_prod["01001"] ≈ 1
+        @test kron(state_first, state_second, state_first) == kron(kron(state_first, state_second), state_first)
 
         state = SparseState{K,V}(["00" => 1, "01" => 1, "10" => 1, "11" => 1], 2)
         @test norm(state) ≈ 2

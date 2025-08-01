@@ -1,3 +1,5 @@
+using Base: RefValue
+
 const DEFAULT_KEYTYPE = UInt64
 const DEFAULT_ELTYPE = Complex{Float64}
 
@@ -21,6 +23,7 @@ end
 struct SparseState{K,V} <: AbstractDict{K,V}
     table::Vector{Pair{K,V}}
     masks::Vector{K}
+    refsorted::RefValue{Bool}
 end
 
 function SparseState{K,V}(pairs, qubits::Int) where {K,V}
@@ -30,7 +33,7 @@ function SparseState{K,V}(pairs, qubits::Int) where {K,V}
     iter = Iterators.map(pairs) do (key, val)
         return parse_key(key, masks) => val
     end
-    return SparseState{K,V}(sort!(vec(collect(iter)); by=first), masks)
+    return SparseState{K,V}(sort!(vec(collect(iter)); by=first), masks, Ref(true))
 end
 
 SparseState{K}(pairs, qubits::Int) where {K} = SparseState{K,DEFAULT_ELTYPE}(pairs, qubits)
@@ -44,22 +47,27 @@ SparseState{K,V}(qubits::Int) where {K,V} = SparseState{K,V}([zero(K) => one(V)]
 SparseState{K}(qubits::Int) where {K} = SparseState{K,DEFAULT_ELTYPE}(qubits)
 SparseState(qubits::Int) = SparseState{DEFAULT_KEYTYPE}(qubits)
 
-table(state::SparseState) = state.table
 num_qubits(state::SparseState) = length(state.masks)
 
-Base.length(state::SparseState) = length(table(state))
-Base.empty(state::SparseState, K, V) = SparseState{K,V}([], state.masks)
-Base.copy(state::SparseState) = SparseState(copy(state.table), copy(state.masks))
-Base.sizehint!(state::SparseState, n::Integer) = sizehint!(table(state), n)
-Base.iterate(state::SparseState, args...) = iterate(table(state), args...)
-Base.pairs(state::SparseState) = table(state)
+Base.length(state::SparseState) = length(state.table)
+Base.empty(state::SparseState{K,V}) where {K,V} = SparseState{K,V}([], state.masks, RefValue(true))
+Base.copy(state::SparseState) = SparseState(copy(state.table), copy(state.masks), Ref(state.refsorted[]))
+Base.sizehint!(state::SparseState, n::Integer) = sizehint!(state.table, n)
+Base.iterate(state::SparseState, args...) = iterate(state.table, args...)
+Base.pairs(state::SparseState) = state.table
 
-function Base.sort!(state::SparseState; kwargs...)
-    sort!(table(state); by=first, kwargs...)
+Base.issorted(state::SparseState) = state.refsorted[]
+setsorted!(state::SparseState, val) = setindex!(state.refsorted, Bool(val))
+
+function Base.sort!(state::SparseState; force::Bool=true)
+    !force && issorted(state) && return state
+    sort!(state.table; by=first)
+    setsorted!(state, true)
     return state
 end
 
 function Base.haskey(state::SparseState, key)
+    sort!(state)
     (; table, masks) = state
     key = parse_key(key, masks)
     n = searchsortedfirst(table, key; by=first)
@@ -67,6 +75,7 @@ function Base.haskey(state::SparseState, key)
 end
 
 function Base.get(state::SparseState, key, default)
+    sort!(state)
     (; table, masks) = state
     key = parse_key(key, masks)
     n = searchsortedfirst(table, key; by=first)
@@ -80,6 +89,7 @@ function Base.get(state::SparseState, key, default)
 end
 
 function Base.get!(default::Function, state::SparseState, key)
+    sort!(state)
     (; table, masks) = state
     key = parse_key(key, masks)
     n = searchsortedfirst(table, key; by=first)
@@ -88,30 +98,33 @@ function Base.get!(default::Function, state::SparseState, key)
         if first(pair) == key
             return last(pair)
         end
+    else
+        value = convert(valtype(state), default())
+        insert!(table, n, key => value)
+        return value
     end
-    val = convert!(valtype(state), default())
-    insert!(table, n, val)
-    return val
 end
 
-function Base.getindex(state::SparseState, key::AbstractString)
-    (; masks) = state
-    return getindex(state, parse_key(key, masks))
-end
-
-function Base.setindex!(state::SparseState, key, value)
-    key = convert_to_keytype(state, key)
+function Base.setindex!(state::SparseState, value, key)
+    sort!(state)
+    (; table, masks) = state
+    key = parse_key(key, masks)
     value = convert(valtype(state), value)
-    table = table(state)
     n = searchsortedfirst(table, key; by=first)
     if n ≤ length(table)
         pair = table[n]
         if first(pair) == key
             table[n] = key => value
         end
+    else
+        insert!(table, n, key => value)
     end
-    insert!(table, n, key => value)
     return value
+end
+
+function Base.getindex(state::SparseState, key::AbstractString)
+    (; masks) = state
+    return getindex(state, parse_key(key, masks))
 end
 
 function Base.show(io::IO, state::SparseState{K,V}) where {K,V}
@@ -124,7 +137,7 @@ function Base.show(io::IO, ::MIME"text/plain", state::SparseState{K,V}) where {K
     foreach(state) do (key, value)
         basis = [Int(!iszero(key & mask)) for mask in state.masks]
         if isreal(value)
-            print(io, " ", (real(value) > 0 ? "+" : ""), round(real(value); sigdigits=6), "|", join(basis), "⟩")
+            print(io, " ", (real(value) ≥ 0 ? "+" : ""), round(real(value); sigdigits=6), "|", join(basis), "⟩")
         else
             print(io, " +(", round(value; sigdigits=6), ")|", join(basis), "⟩")
         end
@@ -176,15 +189,19 @@ function sorted_merge!(
 ) where {K,V₁,V₂}
     @boundscheck num_qubits(first_state) == num_qubits(second_state) ||
         throw(ArgumentError("States do not have the same number of qubits"))
-    sorted_merge!(table(first_state), table(second_state); droptol)
+    sort!(first_state)
+    sort!(second_state)
+    sorted_merge!(first_state.table, second_state.table; droptol)
     return first_state
 end
 
 function Base.isapprox(first_state::SparseState{K,V₁}, second_state::SparseState{K,V₂}; kwargs...) where {K,V₁,V₂}
     @boundscheck num_qubits(first_state) == num_qubits(second_state) ||
         throw(ArgumentError("States do not have the same number of qubits"))
+    sort!(first_state)
+    sort!(second_state)
     # Compare element-wise, assuming sorted tables
-    t₁, t₂ = table(first_state), table(second_state)
+    t₁, t₂ = first_state.table, second_state.table
     n₁, n₂ = firstindex(t₁), firstindex(t₂)
     @label beginning
     @inbounds while n₁ ≤ lastindex(t₁)
@@ -230,7 +247,7 @@ Base.:/(state::SparseState, α::Number) = state * inv(α)
 function LinearAlgebra.kron(first_state::SparseState{K,V₁}, second_state::SparseState{K,V₂}) where {K,V₁,V₂}
     n₁, n₂ = num_qubits(first_state), num_qubits(second_state)
     new_table = [s₁ | (s₂ << n₁) => v₁ * v₂ for (s₁, v₁) in first_state for (s₂, v₂) in second_state]
-    return SparseState(sort!(new_table; by=first), n₁ + n₂)
+    return SparseState(new_table, n₁ + n₂)
 end
 
 LinearAlgebra.kron(states::SparseState...) = foldl(kron, states)
@@ -242,9 +259,11 @@ LinearAlgebra.normalize!(state::SparseState) = rmul!(state, 1 / norm(state))
 function LinearAlgebra.dot(first_state::SparseState, second_state::SparseState)
     @boundscheck num_qubits(first_state) == num_qubits(second_state) ||
         throw(ArgumentError("States do not have the same number of qubits"))
+    sort!(first_state)
+    sort!(second_state)
     # Add common elements, using the fact that the tables are sorted
-    s = zero(promote_type(valtype(first_state), valtype(second_state)))
-    t₁, t₂ = table(first_state), table(second_state)
+    ret = zero(promote_type(valtype(first_state), valtype(second_state)))
+    t₁, t₂ = first_state.table, second_state.table
     n₂ = firstindex(t₂)
     @inbounds for n₁ in eachindex(t₁)
         k₁, v₁ = t₁[n₁]
@@ -258,10 +277,10 @@ function LinearAlgebra.dot(first_state::SparseState, second_state::SparseState)
             end
         end
         if k₁ == k₂
-            s += conj(v₁) * v₂
+            ret += conj(v₁) * v₂
         end
     end
-    return s
+    return ret
 end
 
 function expectation(state::SparseState{K,V}, i::Int) where {K,V}

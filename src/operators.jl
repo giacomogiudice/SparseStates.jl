@@ -48,6 +48,7 @@ function apply!(gate::X, state::SparseState; kwargs...)
         s, v = table[n]
         table[n] = s ⊻ m => v
     end
+    setsorted!(state, false)
     return state
 end
 
@@ -59,6 +60,7 @@ function apply!(gate::Y, state::SparseState; kwargs...)
         s, v = table[n]
         table[n] = s ⊻ m => z * conditional_minus(parity(s & m)) * v
     end
+    setsorted!(state, false)
     return state
 end
 
@@ -97,8 +99,9 @@ function apply!(gate::Union{T,AdjointOperator{T}}, state::SparseState; kwargs...
 end
 
 function apply!(gate::H, state::SparseState; droptol=default_droptol(keytype(state)), kwargs...)
+    # Sort the initial table and set its `refsorted` to `true`
+    sort!(state)
     (; table, masks) = state
-    sort!(table; by=first)
     # Precompute the normalization factor
     z = convert(valtype(state), 1 / √2)
     for (i,) in support(gate)
@@ -119,8 +122,9 @@ function apply!(gate::H, state::SparseState; droptol=default_droptol(keytype(sta
 end
 
 function apply!(gate::U, state::SparseState; droptol=default_droptol(valtype(state)), kwargs...)
+    # Sort the initial table and set its `refsorted` to `true`
+    sort!(state)
     (; table, masks) = state
-    sort!(table; by=first)
     # Precompute the different factors for the gate to be in the form `[α -β'; β α']`
     (; θ, ϕ, λ) = gate
     a, b = cis(-ϕ / 2), cis(-λ / 2)
@@ -145,7 +149,7 @@ end
 
 function apply!(gate::AdjointOperator{<:U}, state::SparseState; kwargs...)
     (; θ, ϕ, λ) = parent(gate)
-    return apply!(U(support(gate); θ=-θ, ϕ=-λ, λ=-ϕ), state; kwargs...)
+    return apply!(U(support(gate); θ=(-θ), ϕ=(-λ), λ=(-ϕ)), state; kwargs...)
 end
 
 function apply!(gate::RX, state::SparseState; kwargs...)
@@ -155,7 +159,7 @@ end
 
 function apply!(gate::AdjointOperator{<:RX}, state::SparseState; kwargs...)
     (; θ) = parent(gate)
-    return apply!(RX(support(gate); θ=-θ), state; kwargs...)
+    return apply!(RX(support(gate); θ=(-θ)), state; kwargs...)
 end
 
 function apply!(gate::RY, state::SparseState; kwargs...)
@@ -165,7 +169,7 @@ end
 
 function apply!(gate::AdjointOperator{<:RY}, state::SparseState; kwargs...)
     (; θ) = parent(gate)
-    return apply!(RY(support(gate); θ=-θ), state; kwargs...)
+    return apply!(RY(support(gate); θ=(-θ)), state; kwargs...)
 end
 
 function apply!(gate::RZ, state::SparseState; kwargs...)
@@ -182,7 +186,7 @@ end
 
 function apply!(gate::AdjointOperator{<:RZ}, state::SparseState; kwargs...)
     (; θ) = parent(gate)
-    return apply!(RZ(support(gate); θ=-θ), state; kwargs...)
+    return apply!(RZ(support(gate); θ=(-θ)), state; kwargs...)
 end
 
 function apply!(gate::CX, state::SparseState; kwargs...)
@@ -195,6 +199,7 @@ function apply!(gate::CX, state::SparseState; kwargs...)
             table[n] = s => v
         end
     end
+    setsorted!(state, false)
     return state
 end
 
@@ -211,6 +216,7 @@ function apply!(gate::CY, state::SparseState; kwargs...)
             table[n] = s => v
         end
     end
+    setsorted!(state, false)
     return state
 end
 
@@ -242,6 +248,7 @@ function apply!(gate::SWAP, state::SparseState; kwargs...)
             table[n] = s => v
         end
     end
+    setsorted!(state, false)
     return state
 end
 
@@ -255,6 +262,7 @@ function apply!(gate::CCX, state::SparseState; kwargs...)
             table[n] = s => v
         end
     end
+    setsorted!(state, false)
     return state
 end
 
@@ -271,6 +279,7 @@ function apply!(gate::CCY, state::SparseState; kwargs...)
             table[n] = s => v
         end
     end
+    setsorted!(state, false)
     return state
 end
 
