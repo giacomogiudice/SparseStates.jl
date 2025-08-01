@@ -1,3 +1,5 @@
+using Base: RefValue
+
 const DEFAULT_KEYTYPE = UInt64
 const DEFAULT_ELTYPE = Complex{Float64}
 
@@ -21,7 +23,7 @@ end
 struct SparseState{K,V} <: AbstractDict{K,V}
     table::Vector{Pair{K,V}}
     masks::Vector{K}
-    refsorted::Ref{Bool}
+    refsorted::RefValue{Bool}
 end
 
 function SparseState{K,V}(pairs, qubits::Int) where {K,V}
