@@ -21,7 +21,7 @@ end
 struct SparseState{K,V} <: AbstractDict{K,V}
     table::Vector{Pair{K,V}}
     masks::Vector{K}
-    issorted::Bool
+    refsorted::Ref{Bool}
 end
 
 function SparseState{K,V}(pairs, qubits::Int) where {K,V}
@@ -31,7 +31,7 @@ function SparseState{K,V}(pairs, qubits::Int) where {K,V}
     iter = Iterators.map(pairs) do (key, val)
         return parse_key(key, masks) => val
     end
-    return SparseState{K,V}(sort!(vec(collect(iter)); by=first), masks, true)
+    return SparseState{K,V}(sort!(vec(collect(iter)); by=first), masks, Ref(true))
 end
 
 SparseState{K}(pairs, qubits::Int) where {K} = SparseState{K,DEFAULT_ELTYPE}(pairs, qubits)
@@ -49,17 +49,18 @@ num_qubits(state::SparseState) = length(state.masks)
 
 Base.length(state::SparseState) = length(state.table)
 Base.empty(state::SparseState, K, V) = SparseState{K,V}([], state.masks, true)
-Base.copy(state::SparseState) = SparseState(copy(state.table), copy(state.masks), state.issorted)
+Base.copy(state::SparseState) = SparseState(copy(state.table), copy(state.masks), Ref(state.refsorted[]))
 Base.sizehint!(state::SparseState, n::Integer) = sizehint!(state.table, n)
 Base.iterate(state::SparseState, args...) = iterate(state.table, args...)
 Base.pairs(state::SparseState) = state.table
 
-Base.issorted(state::SparseState) = state.issorted
+Base.issorted(state::SparseState) = state.refsorted[]
+setsorted!(state::SparseState, val) = setindex!(state.refsorted, Bool(val))
 
 function Base.sort!(state::SparseState; force::Bool=true)
-    !force && state.issorted && return state
+    !force && issorted(state) && return state
     sort!(state.table; by=first)
-    state.issorted = true
+    setsorted!(state, true)
     return state
 end
 

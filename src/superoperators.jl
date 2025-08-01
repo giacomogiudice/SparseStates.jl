@@ -50,8 +50,8 @@ function apply!(channel::Reset, state::SparseState{K,V}) where {K,V}
         end
         return outcome
     end
+    setsorted!(state, false)
     callback(outcomes, state)
-    state.issorted = false
     return state
 end
 
@@ -91,7 +91,6 @@ function apply!(channel::MeasureOperator, state::SparseState)
         return outcome
     end
     callback(outcomes, state)
-    state.issorted = true
     return state
 end
 

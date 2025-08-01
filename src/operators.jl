@@ -48,7 +48,7 @@ function apply!(gate::X, state::SparseState; kwargs...)
         s, v = table[n]
         table[n] = s ⊻ m => v
     end
-    state.issorted = false
+    setsorted!(state, false)
     return state
 end
 
@@ -60,7 +60,7 @@ function apply!(gate::Y, state::SparseState; kwargs...)
         s, v = table[n]
         table[n] = s ⊻ m => z * conditional_minus(parity(s & m)) * v
     end
-    state.issorted = false
+    setsorted!(state, false)
     return state
 end
 
@@ -99,8 +99,9 @@ function apply!(gate::Union{T,AdjointOperator{T}}, state::SparseState; kwargs...
 end
 
 function apply!(gate::H, state::SparseState; droptol=default_droptol(keytype(state)), kwargs...)
+    # Sort the initial table and set its `refsorted` to `true`
+    sort!(state)
     (; table, masks) = state
-    state.issorted || sort!(table; by=first)
     # Precompute the normalization factor
     z = convert(valtype(state), 1 / √2)
     for (i,) in support(gate)
@@ -117,13 +118,13 @@ function apply!(gate::H, state::SparseState; droptol=default_droptol(keytype(sta
         sort!(new_table; by=first)
         sorted_merge!(table, new_table; droptol)
     end
-    state.issorted = true
     return state
 end
 
 function apply!(gate::U, state::SparseState; droptol=default_droptol(valtype(state)), kwargs...)
+    # Sort the initial table and set its `refsorted` to `true`
+    sort!(state)
     (; table, masks) = state
-    state.issorted || sort!(table; by=first)
     # Precompute the different factors for the gate to be in the form `[α -β'; β α']`
     (; θ, ϕ, λ) = gate
     a, b = cis(-ϕ / 2), cis(-λ / 2)
@@ -143,7 +144,6 @@ function apply!(gate::U, state::SparseState; droptol=default_droptol(valtype(sta
         sort!(new_table; by=first)
         sorted_merge!(table, new_table; droptol)
     end
-    state.issorted = true
     return state
 end
 
@@ -199,7 +199,7 @@ function apply!(gate::CX, state::SparseState; kwargs...)
             table[n] = s => v
         end
     end
-    state.issorted = false
+    setsorted!(state, false)
     return state
 end
 
@@ -216,7 +216,7 @@ function apply!(gate::CY, state::SparseState; kwargs...)
             table[n] = s => v
         end
     end
-    state.issorted = false
+    setsorted!(state, false)
     return state
 end
 
@@ -248,7 +248,7 @@ function apply!(gate::SWAP, state::SparseState; kwargs...)
             table[n] = s => v
         end
     end
-    state.issorted = false
+    setsorted!(state, false)
     return state
 end
 
@@ -262,7 +262,7 @@ function apply!(gate::CCX, state::SparseState; kwargs...)
             table[n] = s => v
         end
     end
-    state.issorted = false
+    setsorted!(state, false)
     return state
 end
 
@@ -279,7 +279,7 @@ function apply!(gate::CCY, state::SparseState; kwargs...)
             table[n] = s => v
         end
     end
-    state.issorted = false
+    setsorted!(state, false)
     return state
 end
 
