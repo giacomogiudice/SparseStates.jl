@@ -98,31 +98,33 @@ function Base.get!(default::Function, state::SparseState, key)
         if first(pair) == key
             return last(pair)
         end
+    else
+        value = convert(valtype(state), default())
+        insert!(table, n, key => value)
+        return value
     end
-    val = convert!(valtype(state), default())
-    insert!(table, n, val)
-    return val
 end
 
-function Base.getindex(state::SparseState, key::AbstractString)
-    (; masks) = state
-    return getindex(state, parse_key(key, masks))
-end
-
-function Base.setindex!(state::SparseState, key, value)
+function Base.setindex!(state::SparseState, value, key)
     sort!(state)
-    key = convert_to_keytype(state, key)
+    (; table, masks) = state
+    key = parse_key(key, masks)
     value = convert(valtype(state), value)
-    table = table(state)
     n = searchsortedfirst(table, key; by=first)
     if n ≤ length(table)
         pair = table[n]
         if first(pair) == key
             table[n] = key => value
         end
+    else
+        insert!(table, n, key => value)
     end
-    insert!(table, n, key => value)
     return value
+end
+
+function Base.getindex(state::SparseState, key::AbstractString)
+    (; masks) = state
+    return getindex(state, parse_key(key, masks))
 end
 
 function Base.show(io::IO, state::SparseState{K,V}) where {K,V}
@@ -135,7 +137,7 @@ function Base.show(io::IO, ::MIME"text/plain", state::SparseState{K,V}) where {K
     foreach(state) do (key, value)
         basis = [Int(!iszero(key & mask)) for mask in state.masks]
         if isreal(value)
-            print(io, " ", (real(value) > 0 ? "+" : ""), round(real(value); sigdigits=6), "|", join(basis), "⟩")
+            print(io, " ", (real(value) ≥ 0 ? "+" : ""), round(real(value); sigdigits=6), "|", join(basis), "⟩")
         else
             print(io, " +(", round(value; sigdigits=6), ")|", join(basis), "⟩")
         end
