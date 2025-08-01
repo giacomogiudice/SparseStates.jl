@@ -50,7 +50,7 @@ SparseState(qubits::Int) = SparseState{DEFAULT_KEYTYPE}(qubits)
 num_qubits(state::SparseState) = length(state.masks)
 
 Base.length(state::SparseState) = length(state.table)
-Base.empty(state::SparseState, K, V) = SparseState{K,V}([], state.masks, true)
+Base.empty(state::SparseState{K,V}) where {K,V} = SparseState{K,V}([], state.masks, RefValue(true))
 Base.copy(state::SparseState) = SparseState(copy(state.table), copy(state.masks), Ref(state.refsorted[]))
 Base.sizehint!(state::SparseState, n::Integer) = sizehint!(state.table, n)
 Base.iterate(state::SparseState, args...) = iterate(state.table, args...)
