@@ -3,8 +3,8 @@ const PAULI_COMBINATIONS = ntuple(l -> collect(pauli_combinations(l)), 3)
 
 default_callback(outcomes, state::SparseState) = nothing
 
-@super_operator Reset{F<:Function} 1 callback::F = default_callback
-@super_operator Measure{F<:Function} 1 callback::F = default_callback
+@super_operator Reset{F} 1 callback::F = default_callback
+@super_operator Measure{F} 1 callback::F = default_callback
 
 function apply!(channel::Measure, state::SparseState{K,V}) where {K,V}
     (; callback) = channel
@@ -55,12 +55,12 @@ function apply!(channel::Reset, state::SparseState{K,V}) where {K,V}
     return state
 end
 
-struct MeasureOperator{O<:AbstractOperator,F<:Function} <: SuperOperator
+struct MeasureOperator{O<:AbstractOperator,F} <: SuperOperator
     ops::Vector{O}
     callback::F
 end
 
-function MeasureOperator(ops::AbstractArray{O}; callback::F=default_callback) where {O<:AbstractOperator,F<:Function}
+function MeasureOperator(ops::AbstractArray{O}; callback::F=default_callback) where {O<:AbstractOperator,F}
     return MeasureOperator(vec(collect(ops)), callback)
 end
 

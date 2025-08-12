@@ -273,6 +273,33 @@ end
     @test !isempty(String(take!(buf)))
 end
 
+@testset "Callbacks" begin
+    @testset "Register" begin
+        register = Register()
+        state_initial = SparseState(1)
+        state_final = apply(H(1), state_initial) 
+        @test (@inferred length(register)) == 0 && (@inferred isempty(register))
+        apply!(Measure(1; callback=register), state_final)
+        @test length(register) == 1
+        apply!(Measure(1; callback=register), state_final)
+        @test length(register) == 2
+        @test allequal(register)
+        empty!(register)
+        @test length(register) == 0
+    end
+    @testset "Feedback" begin
+        state_initial = SparseState(2)
+        state_target = apply(H(1) * CX(1, 2), state_initial)
+        feedback = Feedback(Z(1))
+        circuit = MeasureOperator(X(1) * X(2), callback=feedback)
+        for _ in 1:10
+            state_final = apply(circuit, state_initial)
+            @test abs2(dot(state_target, state_final)) ≈ 1
+        end
+    end
+
+end
+
 @testset "Utilities" begin
     state = SparseState(("00" => 1, "11" => 1), 2)
     normalize!(state)
@@ -295,12 +322,12 @@ end
     shots = 10000
     @test expectation(state_initial, 1) ≈ 0
     @test expectation(state_final, 1) ≈ 1 / 2
-    outcomes = Bool[]
+    register = Register(; sizehint=shots)
     for _ in 1:shots
-        measurement = Measure(1; callback=(out, _) -> push!(outcomes, only(out)))
+        measurement = Measure(1; callback=register)
         apply(measurement, state_final)
     end
-    @test ≈(sum(outcomes) / shots, 1 / 2; atol=(4 / √shots))
+    @test ≈(sum(register) / shots, 1 / 2; atol=(4 / √shots))
 end
 
 @testset "Bell state" begin
