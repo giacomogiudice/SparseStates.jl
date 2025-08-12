@@ -1,5 +1,6 @@
 # SparseStates.jl
 
+**⚠️ This is still experimental. It is not stable. It is not polished. ⚠️**
 
 This package efficiently simulates quantum circuits that don't generate a lot of superposition in the computational basis.
 In other words, they are few basis states to keep track of.
