@@ -28,7 +28,6 @@ Base.firstindex(register::Register) = firstindex(parent(register))
 Base.lastindex(register::Register) = lastindex(parent(register))
 Base.getindex(register::Register, i) = getindex(parent(register), i)
 
-
 function Base.show(io::IO, register::Register)
     return print(io, "Register($(register.tape))")
 end
@@ -54,7 +53,7 @@ end
 function Base.show(io::IO, feedback::Feedback)
     print(io, "Feedback", "(")
     print(io, (feedback.trigger == identity) ? "" : "$(feedback.trigger), ")
-    print(io, (length(feedback.ops) == 1) ? only(feedback.ops) : ops)
+    print(io, (length(feedback.ops) == 1) ? only(feedback.ops) : feedback.ops)
     print(io, ")")
     return nothing
 end

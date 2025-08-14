@@ -277,7 +277,7 @@ end
     @testset "Register" begin
         register = Register()
         state_initial = SparseState(1)
-        state_final = apply(H(1), state_initial) 
+        state_final = apply(H(1), state_initial)
         @test (@inferred length(register)) == 0 && (@inferred isempty(register))
         apply!(Measure(1; callback=register), state_final)
         @test length(register) == 1
@@ -297,7 +297,6 @@ end
             @test abs2(dot(state_target, state_final)) ≈ 1
         end
     end
-
 end
 
 @testset "Utilities" begin
@@ -341,12 +340,12 @@ end
     @test expectation(state_final, 1) ≈ 1 / 2
     @test expectation(state_final, 2) ≈ 1 / 2
 
-    outcomes = Bool[]
+    register = Register(; sizehint=shots)
     for _ in 1:shots
-        measurement = Measure(1; callback=(out, _) -> push!(outcomes, allequal(out)))
+        measurement = Measure([1, 2]; callback=register)
         apply(measurement, state_final)
     end
-    @test all(outcomes)
+    @test all(register[begin:2:(end - 1)] .== register[(begin + 1):2:end])
 end
 
 @testset "Teleportation" begin
@@ -354,9 +353,9 @@ end
         H(2),
         CX(2, 3),
         CX(1, 2),
-        MeasureOperator(Z(2); callback=((rec, state) -> only(rec) && apply!(X(3), state))),
+        MeasureOperator(Z(2); callback=Feedback(X(3))),
         Reset(2),
-        MeasureOperator(X(1); callback=((rec, state) -> only(rec) && apply!(Z(3), state))),
+        MeasureOperator(X(1); callback=Feedback(Z(3))),
         Reset(1),
         SWAP(3, 1),
     )
@@ -376,7 +375,55 @@ end
     end
 end
 
-@testset "Bacon-Shor error correction" begin
+@testset "Steane code" begin
+    # Indices are the same for X and Z stabilizers
+    stabilizer_indices = ([1, 3, 5, 7], [2, 3, 6, 7], [4, 5, 6, 7])
+    stabilizers = Dict(X => map(X, stabilizer_indices), Z => map(Z, stabilizer_indices))
+
+    # Construct a lookup table `measurement_string` -> 
+    corrections = Dict(X => ntuple(i -> X(i), 7), Z => ntuple(i -> Z(i), 7))
+
+    table = Dict([i in v for v in stabilizer_indices] => [i == j for j in 1:7] for i in 1:7)
+    table[[0, 0, 0]] = zeros(Bool, 7)
+    lookup = out -> table[out]
+
+    # Unitary encoding circuit
+    circuit_zero = Circuit(
+        H([1, 3, 6]),
+        CX([(1, 2), (6, 7)]),
+        CX(3, 2),
+        CX(3, 4),
+        CX([(2, 3), (4, 5)]),
+        CX([(2, 1), (6, 5)]),
+        CX(5, 4),
+        CX([(3, 4), (6, 5)]),
+        CX(5, 6),
+        CX(4, 5),
+    )
+
+    # Error-correcting circuit
+    circuit_qec = Circuit(
+        MeasureOperator(stabilizers[X]...; callback=Feedback(lookup, corrections[Z])),
+        MeasureOperator(stabilizers[Z]...; callback=Feedback(lookup, corrections[X])),
+    )
+
+    state_initial = SparseState{UInt8}(7)
+    state_encoded = apply(circuit_zero, state_initial)
+    state_final = apply(circuit_qec, state_encoded)
+    @test abs2(dot(state_final, state_encoded)) ≈ 1
+
+    state_final = apply(circuit_qec, state_initial)
+    @test abs2(dot(state_final, state_encoded)) ≈ 1
+
+    # Insert random errors and test recovery
+    for _ in 1:10
+        state_final = apply(X(rand(1:7)) * Z(rand(1:7)), state_encoded)
+        state_final = apply(circuit_qec, state_final)
+        @test abs2(dot(state_final, state_encoded)) ≈ 1
+    end
+end
+
+@testset "Bacon-Shor code" begin
     # Circuit adapted from https://arxiv.org/abs/2404.11663
     p = 0.0082 # pseudo-threshold for `Z` eigenstates
     shots = 100000
