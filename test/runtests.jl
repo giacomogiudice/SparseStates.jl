@@ -11,6 +11,14 @@ const REAL_VAL_TYPES = (Float32, Float64)
 const COMPLEX_VAL_TYPES = (ComplexF32, ComplexF64)
 const VAL_TYPES = (REAL_VAL_TYPES..., COMPLEX_VAL_TYPES...)
 
+# Make sure printing something returns something
+function prints_something(x; compact::Bool=true)
+    io = IOBuffer()
+    compact ? show(io, x) : show(io, "text/plain", x)
+    output = String(take!(io))
+    return !isempty(output)
+end
+
 @testset "SparseStates" begin
     @testset "SparseState{$K,$V}" for (K, V) in Iterators.product(KEY_TYPES, VAL_TYPES)
         state = SparseState{K,V}(2)
@@ -261,16 +269,9 @@ end
     @test circuit'' == circuit
     @test_throws MethodError adjoint(X(1) * Measure(1))
 
-    # Make sure printing returns something
-    buf = IOBuffer()
-    show(buf, circuit)
-    @test !isempty(String(take!(buf)))
-    show(buf, "text/plain", circuit)
-    @test !isempty(String(take!(buf)))
-    show(buf, circuit')
-    @test !isempty(String(take!(buf)))
-    show(buf, "text/plain", circuit')
-    @test !isempty(String(take!(buf)))
+    # Printing
+    @test prints_something(circuit; compact=true) & prints_something(circuit'; compact=false)
+    @test prints_something(circuit; compact=true) & prints_something(circuit'; compact=true)
 end
 
 @testset "Callbacks" begin
@@ -284,8 +285,10 @@ end
         apply!(Measure(1; callback=register), state_final)
         @test length(register) == 2
         @test allequal(register)
+        @test Vector(BitVector(register)) == Vector(register) == collect(register)
         empty!(register)
         @test length(register) == 0
+        @test prints_something(register)
     end
     @testset "Feedback" begin
         state_initial = SparseState(2)
@@ -296,6 +299,7 @@ end
             state_final = apply(circuit, state_initial)
             @test abs2(dot(state_target, state_final)) ≈ 1
         end
+        @test prints_something(feedback)
     end
 end
 
@@ -380,12 +384,12 @@ end
     stabilizer_indices = ([1, 3, 5, 7], [2, 3, 6, 7], [4, 5, 6, 7])
     stabilizers = Dict(X => map(X, stabilizer_indices), Z => map(Z, stabilizer_indices))
 
-    # Construct a lookup table `measurement_string` -> 
-    corrections = Dict(X => ntuple(i -> X(i), 7), Z => ntuple(i -> Z(i), 7))
-
+    # Construct a lookup table and list of corrections
     table = Dict([i in v for v in stabilizer_indices] => [i == j for j in 1:7] for i in 1:7)
     table[[0, 0, 0]] = zeros(Bool, 7)
     lookup = out -> table[out]
+
+    corrections = Dict(X => ntuple(i -> X(i), 7), Z => ntuple(i -> Z(i), 7))
 
     # Unitary encoding circuit
     circuit_zero = Circuit(
