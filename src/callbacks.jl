@@ -32,14 +32,13 @@ function Base.show(io::IO, register::Register)
     return print(io, "Register($(register.tape))")
 end
 
-struct Feedback{F<:Function,T<:Tuple} <: AbstractCallback
+struct Feedback{F<:Function,V<:AbstractVector} <: AbstractCallback
     trigger::F
-    ops::T
+    ops::V
 end
 
-Feedback(trigger::Function, op::AbstractOperator) = Feedback(trigger, (op,))
-Feedback(ops::Tuple) = Feedback(identity, ops)
-Feedback(ops::AbstractOperator...) = Feedback(ops)
+Feedback(trigger::Function, op::AbstractOperator) = Feedback(trigger, [op])
+Feedback(ops::AbstractOperator...) = Feedback(identity, collect(ops))
 
 function (feedback::Feedback)(outcomes::AbstractVector{Bool}, state::SparseState)
     (; trigger, ops) = feedback

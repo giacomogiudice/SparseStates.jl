@@ -389,7 +389,7 @@ end
     table[[0, 0, 0]] = zeros(Bool, 7)
     lookup = out -> table[out]
 
-    corrections = Dict(X => ntuple(i -> X(i), 7), Z => ntuple(i -> Z(i), 7))
+    corrections = Dict(X => map(X, 1:7), Z => map(Z, 1:7))
 
     # Unitary encoding circuit
     circuit_zero = Circuit(
