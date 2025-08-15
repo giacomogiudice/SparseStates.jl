@@ -11,6 +11,14 @@ const REAL_VAL_TYPES = (Float32, Float64)
 const COMPLEX_VAL_TYPES = (ComplexF32, ComplexF64)
 const VAL_TYPES = (REAL_VAL_TYPES..., COMPLEX_VAL_TYPES...)
 
+# Make sure printing something returns something
+function prints_something(x; compact::Bool=true)
+    io = IOBuffer()
+    compact ? show(io, x) : show(io, "text/plain", x)
+    output = String(take!(io))
+    return !isempty(output)
+end
+
 @testset "SparseStates" begin
     @testset "SparseState{$K,$V}" for (K, V) in Iterators.product(KEY_TYPES, VAL_TYPES)
         state = SparseState{K,V}(2)
@@ -261,16 +269,38 @@ end
     @test circuit'' == circuit
     @test_throws MethodError adjoint(X(1) * Measure(1))
 
-    # Make sure printing returns something
-    buf = IOBuffer()
-    show(buf, circuit)
-    @test !isempty(String(take!(buf)))
-    show(buf, "text/plain", circuit)
-    @test !isempty(String(take!(buf)))
-    show(buf, circuit')
-    @test !isempty(String(take!(buf)))
-    show(buf, "text/plain", circuit')
-    @test !isempty(String(take!(buf)))
+    # Printing
+    @test prints_something(circuit; compact=true) & prints_something(circuit'; compact=false)
+    @test prints_something(circuit; compact=true) & prints_something(circuit'; compact=true)
+end
+
+@testset "Callbacks" begin
+    @testset "Register" begin
+        register = Register()
+        state_initial = SparseState(1)
+        state_final = apply(H(1), state_initial)
+        @test (@inferred length(register)) == 0 && (@inferred isempty(register))
+        apply!(Measure(1; callback=register), state_final)
+        @test length(register) == 1
+        apply!(Measure(1; callback=register), state_final)
+        @test length(register) == 2
+        @test allequal(register)
+        @test Vector(BitVector(register)) == Vector(register) == collect(register)
+        empty!(register)
+        @test length(register) == 0
+        @test prints_something(register)
+    end
+    @testset "Feedback" begin
+        state_initial = SparseState(2)
+        state_target = apply(H(1) * CX(1, 2), state_initial)
+        feedback = Feedback(Z(1))
+        circuit = MeasureOperator(X(1) * X(2), callback=feedback)
+        for _ in 1:10
+            state_final = apply(circuit, state_initial)
+            @test abs2(dot(state_target, state_final)) ≈ 1
+        end
+        @test prints_something(feedback)
+    end
 end
 
 @testset "Utilities" begin
@@ -295,12 +325,12 @@ end
     shots = 10000
     @test expectation(state_initial, 1) ≈ 0
     @test expectation(state_final, 1) ≈ 1 / 2
-    outcomes = Bool[]
+    register = Register(; sizehint=shots)
     for _ in 1:shots
-        measurement = Measure(1; callback=(out, _) -> push!(outcomes, only(out)))
+        measurement = Measure(1; callback=register)
         apply(measurement, state_final)
     end
-    @test ≈(sum(outcomes) / shots, 1 / 2; atol=(4 / √shots))
+    @test ≈(sum(register) / shots, 1 / 2; atol=(4 / √shots))
 end
 
 @testset "Bell state" begin
@@ -314,12 +344,12 @@ end
     @test expectation(state_final, 1) ≈ 1 / 2
     @test expectation(state_final, 2) ≈ 1 / 2
 
-    outcomes = Bool[]
+    register = Register(; sizehint=shots)
     for _ in 1:shots
-        measurement = Measure(1; callback=(out, _) -> push!(outcomes, allequal(out)))
+        measurement = Measure([1, 2]; callback=register)
         apply(measurement, state_final)
     end
-    @test all(outcomes)
+    @test all(register[begin:2:(end - 1)] .== register[(begin + 1):2:end])
 end
 
 @testset "Teleportation" begin
@@ -327,9 +357,9 @@ end
         H(2),
         CX(2, 3),
         CX(1, 2),
-        MeasureOperator(Z(2); callback=((rec, state) -> only(rec) && apply!(X(3), state))),
+        MeasureOperator(Z(2); callback=Feedback(X(3))),
         Reset(2),
-        MeasureOperator(X(1); callback=((rec, state) -> only(rec) && apply!(Z(3), state))),
+        MeasureOperator(X(1); callback=Feedback(Z(3))),
         Reset(1),
         SWAP(3, 1),
     )
@@ -349,7 +379,55 @@ end
     end
 end
 
-@testset "Bacon-Shor error correction" begin
+@testset "Steane code" begin
+    # Indices are the same for X and Z stabilizers
+    stabilizer_indices = ([1, 3, 5, 7], [2, 3, 6, 7], [4, 5, 6, 7])
+    stabilizers = Dict(X => map(X, stabilizer_indices), Z => map(Z, stabilizer_indices))
+
+    # Construct a lookup table and list of corrections
+    table = Dict([i in v for v in stabilizer_indices] => [i == j for j in 1:7] for i in 1:7)
+    table[[0, 0, 0]] = zeros(Bool, 7)
+    lookup = out -> table[out]
+
+    corrections = Dict(X => map(X, 1:7), Z => map(Z, 1:7))
+
+    # Unitary encoding circuit
+    circuit_zero = Circuit(
+        H([1, 3, 6]),
+        CX([(1, 2), (6, 7)]),
+        CX(3, 2),
+        CX(3, 4),
+        CX([(2, 3), (4, 5)]),
+        CX([(2, 1), (6, 5)]),
+        CX(5, 4),
+        CX([(3, 4), (6, 5)]),
+        CX(5, 6),
+        CX(4, 5),
+    )
+
+    # Error-correcting circuit
+    circuit_qec = Circuit(
+        MeasureOperator(stabilizers[X]...; callback=Feedback(lookup, corrections[Z])),
+        MeasureOperator(stabilizers[Z]...; callback=Feedback(lookup, corrections[X])),
+    )
+
+    state_initial = SparseState{UInt8}(7)
+    state_encoded = apply(circuit_zero, state_initial)
+    state_final = apply(circuit_qec, state_encoded)
+    @test abs2(dot(state_final, state_encoded)) ≈ 1
+
+    state_final = apply(circuit_qec, state_initial)
+    @test abs2(dot(state_final, state_encoded)) ≈ 1
+
+    # Insert random errors and test recovery
+    for _ in 1:10
+        state_final = apply(X(rand(1:7)) * Z(rand(1:7)), state_encoded)
+        state_final = apply(circuit_qec, state_final)
+        @test abs2(dot(state_final, state_encoded)) ≈ 1
+    end
+end
+
+@testset "Bacon-Shor code" begin
     # Circuit adapted from https://arxiv.org/abs/2404.11663
     p = 0.0082 # pseudo-threshold for `Z` eigenstates
     shots = 100000
