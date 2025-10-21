@@ -59,7 +59,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Julia
-        uses: julia-actions/setup-julia@v1
+        uses: julia-actions/setup-julia@v2
         with:
           version: '1' # Latest stable version
 
@@ -82,4 +82,4 @@ jobs:
             write(stdout, read(`git diff`, String))
             exit(1)
           end
-        shell: julia --color=yes --compiled-modules=no --optimize=0 {0}
+        shell: julia --color=yes --optimize=0 {0}
